@@ -29,9 +29,11 @@ use warnings;
 use strict;
 use Getopt::Long;
 use Data::Dumper;
+use Cwd 'abs_path';
+use File::Basename;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.0";
+my $version = "v2.0.1";
 my $description = <<"EOT";
 
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
@@ -100,10 +102,10 @@ if ( $preview ) {
 #########------------------------------ END ARG Parsing ---------------------------------#########
 
 # Get the CPSC lookup table
+my $scriptdir = dirname(abs_path($0));
 my $lookup;
 
-# TODO: use relative path
-my $lookup_path = "/opt/mocha/cpscChecker/lookup_tables";
+my $lookup_path = "$scriptdir/lookup_tables";
 ( $ltable eq '3' )   ? $lookup = "${lookup_path}/cpsc_v3_lookupTable.txt"  :
 ( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"  :
 ( $ltable eq '5' )   ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"  :
@@ -116,24 +118,27 @@ open( my $lookup_fh, "<", $lookup ) || die "Lookup file not found: '$!'";
 my %plas_lookup = map { my @fields = split; "$fields[1]:$fields[2]" => [@fields] } <$lookup_fh>;
 close( $lookup_fh );
 
-# load up query table and print matching records
+# load up query table and print matching records; have to use alleles.xls files now
 my $query = shift;
-open ( QUERY, "<", $query ) || die "Query table '$query' not found: '$!'\n";
+open ( my $cpsc_fh, "<", $query ) || die "Query table '$query' not found: '$!'\n";
 my ( %results, %counter );
-while (<QUERY>) {
+while (<$cpsc_fh>) {
 	chomp;
-	next if ( /Gene Sym/ || /Ref/ || /NC/ || /---/ );
+	next if ( /Chrom/ || /Absent/ || /No Call/ ); 
 	my @line = split;
-	my $variant_id = "$line[0]:$line[1]";
-	
+	my $variant_id = "$line[0]:$line[14]";
+    my $ref = $line[2];
+    my $alt = $line[3];
+
 	next if ( ! exists $plas_lookup{$variant_id} );
 
-	my ($cosid) = grep { $line[14] =~ /($_)/ } @{$plas_lookup{$variant_id}}; 
+	#my ($cosid) = grep { $line[11] =~ /($_)/ } @{$plas_lookup{$variant_id}}; 
+    my $cosid = $plas_lookup{$variant_id}[4]; # Get COSMIC ID from lookup table as it's more accurate than BED file.
 
 	# Use Genotype field to create REF and ALT data
-	my ( $ref, $alt ) = $line[6] =~ /^(\w+)\/(\w+)$/;
-
-	$results{$variant_id} = [@line[2,0,1,3],$ref,$alt,@line[9,11],$cosid]; 
+	#my ( $ref, $alt ) = $line[6] =~ /^(\w+)\/(\w+)$/;
+    
+	$results{$variant_id} = [@line[12,0,14,13],$ref,$alt,@line[6,18],$cosid]; 
 	$counter{$variant_id} = 1;
 }
 
