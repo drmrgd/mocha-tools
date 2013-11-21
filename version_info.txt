@@ -1,0 +1,21 @@
+7/23/2013
+Start of versioning docs for this package.
+
+7/23/13
+    - fixed output of 'sampleKeyGen.pl'.  Output was putting \t at the end of the lines of the final
+      output file.  
+
+8/15/13 - v0.8.0
+    - Added ability to choose different default lookup table for the cpscChecker function with the '-l' 
+      option.
+    - Added a here doc description of the program and usage to help show how to use the program.
+
+8/30/13 - v8.8.1
+    - Added a new lookup in cpscChecker.pl that would use the lookup table to assign a variant call a cosmic
+      id in the event the TVC did not issue one (due to the variant not being in the HotSpots BED file).  
+    - Fixed the lookup tables to have the variant start position agree with what TVC reports.  This will help
+      some downstream analysis packages I've been working on.
+
+9/3/13 - v8.8.2
+    - Cleaned up the lookup tables and changed some of the start positions of the variants in the table to 
+      match the output of TVC.  This will help in scripting later on.
