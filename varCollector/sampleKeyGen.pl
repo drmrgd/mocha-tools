@@ -27,6 +27,7 @@ my $usage = <<"EOT";
 USAGE: $scriptname [options] 
     -f, --file        Custom JSON file if not running from default path
     -t, --test        Write output to STDOUT rather than 'sampleKey.txt
+    -o, --output      Write output to custom file (DEFAULT: 'sampleKey.txt')
     -v, --version     Version Information
     -h, --help        Display the help information
 EOT
@@ -39,6 +40,7 @@ my $jsonfile = "basecaller_results/datasets_pipeline.json";
 
 GetOptions( "test"       => \$preview,
 	        "file=s"     => \$jsonfile,
+            "output=s"   => \$outfile,
 	        "version"    => \$ver_info,
 			"help"       => \$help )
 			or print $usage;
