@@ -4,6 +4,9 @@
 #
 # 11/7/2013 - Updated for TSv4.0
 #
+# TODO:
+#   - Work out the filtered VCF file based on GeneMed requirements. 
+#
 # Created: 2/25/2013	Dave Sims
 #########################################################################################################################
 use warnings;
@@ -14,7 +17,7 @@ use Cwd;
 use File::Copy;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.1";
+my $version = "v2.0.3";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -109,30 +112,35 @@ if ( $sampleNumber == 0  || ( $sampleNumber + 1 ) < $numBC ) { # Have to add 1 t
 # Switch to the alleles.xls table as variants.xls is deprecated.
 chdir( "$TVCout" );
 foreach my $sample ( @sample_dirs ) {
-	#my $tab_file = "$sample/variants.xls";
     my $tab_file = "$sample/alleles.xls"; # replaces variants.xls
 	my $vcf_file = "$sample/TSVC_variants.vcf";
-	# Grab variants.xls files
+
+	# Grab alleles.xls files
 	if ( -f $tab_file ) {
-		#copy( "$sample/variants.xls", "$colVarsDir/$barcodes{$sample}_variants.txt" );
 		copy( $tab_file, "$colVarsDir/$sample.txt" ); #make copy of unfiltered data
 		filter_vars( \$tab_file ); #filter and add to collectedVariants dir
+   
 	} 
 	else {
-		warn "The variants .xls file: '$sample/variants.xls' can not be found! $!\n";
+		warn "The tabular variant call file: '$sample/alleles.xls' can not be found! $!\n";
 	}
+
 	# Grab vcf files
 	if ( -f $vcf_file ) {
 		#copy( "$sample/TSVC_variants.vcf", "$colVarsDir/$barcodes{$sample}_variants.vcf" ); 
-		copy( $vcf_file, "$colVarsDir/$sample.vcf" ); 
+		#copy( $vcf_file, "$colVarsDir/${sample}_${runid}.vcf" ); 
+		copy( $vcf_file, "$colVarsDir/$barcodes{$sample}_${runid}.vcf" ); 
 		filter_vars( \$vcf_file );
 	} else {
 		warn "No TSVC_variants.vcf file found.  Skipping...\n";
 	}
 }
 
+# Create a summary table based on the data generated from above.
+summary_table();
+
 sub filter_vars {
-	# Get rid of the 'Absent' calls.  Keep No Call for reference 
+	# Get rid of the 'Absent' and 'No Call' data to make more informative output.  Will keep raw data for troubleshooting later  
 	
 	my $varfile = shift;
 
@@ -141,15 +149,14 @@ sub filter_vars {
 	my $sample_name = $barcodes{$barcode};
 
     # TODO: setup the headers here for use downstream
-    my $data_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s %-8.2f %-12.0d %-8.0d %-8.0d %-8.0d %-5.0d %-12s\n";
+    my $data_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s %8.2f %12.0f %8.0f %8.0f %8.0f %5.0f     %-12s\n";
     
-    my $theader_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s %-8s %-12s %-8s %-8s %-8s %-5s %-12s\n";
+    my $theader_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s   %-8s      %-6s    %-6s   %-7s %-8s %-5s %-12s\n";
     my @tab_fields = qw{ Chrom Position Gene AmpID Type Ref Alt Freq Qual Cov RefCov VarCov HP Hotspot };
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
-    my $vcf_header;
-
 	if ( $$varfile =~ /\.vcf$/ ) {
+        my $outfile = "$colVarsDir/${sample_name}_${runid}_filtered.vcf";
 		# TODO:
 		# 	- Can filter VCF on 'NOCALL'
 		# 	- Can also consider filtering VCF file on GT field (either ./. or 0/0 
@@ -159,61 +166,51 @@ sub filter_vars {
     elsif ( $$varfile =~ /\.xls$/ ) {
 		# Filter alleles.xls 
 
-        print $tab_header;
-		# TODO: Work on the output formatting.  Get dynamic field widths? Just print as is?
 		open( my $xls_fh, "<", $$varfile ) || die "Can't open the variants.xls file for reading";
 		@filtered_data =  grep { ! /(Absent|No Call)/ } <$xls_fh>; # Get only variant containing lines
 
-        # FIXME: write to stdout for now
-        #my $outfile = "$colVarsDir/${sample_name}_filtered_variants.txt";
+        my $outfile = "$colVarsDir/${sample_name}_filtered.txt";
 
-		#open( my $out_fh, ">", $outfile ) || die "Can't create file '$outfile' for writing: $!";
-		#print $out_fh "$header\n";
+        open( my $out_fh, ">", $outfile ) || die "Can't create file '$outfile' for writing: $!";
+        print $out_fh $tab_header;
+
 		for ( @filtered_data ) {
 			my @data = split;
             next if /Chrom/;
 
-            # FIXME: if variant is 100% VAF, not geting any data at all for REF coverage.  expect to see '0'
             my $refcov = $data[18]-$data[24];
             my @subset = ( @data[0,14,12,13,9,2,3,6,7,18], $refcov, @data[24,37,11] );
             my $formatted_data = sprintf( $data_format, @subset );
 
-            # FIXME
-			#print $out_fh $formatted_data;
-			print $formatted_data;
+            print $out_fh $formatted_data;
 		} 
     }
 	return;
 }
 
-
 sub summary_table {
-    my $header;
     # Create a summary table of all of the variants found in all of the samples.  Need to work with a filtered
 	# dataset or this file will be a mess!
 	
-	my $outputFile = "$colVarsDir" .  $runid . "_allVariants.tsv";
-	open ( OUTFILE, ">", $outputFile ) || die "Output file: '$outputFile' can not be opened for writing! $!\n";
+    my $theader_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s   %-8s      %-6s    %-6s   %-7s %-8s %-5s %-12s\n";
+    my @tab_fields = qw{ Chrom Position Gene AmpID Type Ref Alt Freq Qual Cov RefCov VarCov HP Hotspot };
+    my $tab_header = sprintf( $theader_format, @tab_fields );
 
-	my @varFiles;
-	opendir( VARSDIR, "$colVarsDir" ) || die "Can't read collectedVariants directory! #!\n";
-	while ( my $files = readdir( VARSDIR ) ) {
-		next unless ( $files =~ /IonXpress_\d+\.txt/ );
-		push( @varFiles, $files );
-	}
+	my $outputFile = "$colVarsDir" .  $runid . "_allVariants.tsv";
+	open ( my $summary_fh, ">", $outputFile ) || die "Output file: '$outputFile' can not be opened for writing! $!";
+
+	opendir( VARSDIR, "$colVarsDir" ) || die "Can't read collectedVariants directory! $!";
+    my @var_files = map { "$barcodes{$_}_filtered.txt" } map { $_ =~ /(IonXpress_\d+)\.txt/ } readdir( VARSDIR );
 
 	# Read through all the variant call files, concatenate them, and add the sample name to the row.
-	foreach my $varFile ( sort( @varFiles ) ) {
-		( my $index = $varFile ) =~ s/\..*//;
-		open ( VARFILE, "<", $varFile ) || die "Can't open this file for some reason: '$varFile'\n";
-		print OUTFILE "::: Variant Calls for $barcodes{$index} :::\n\n";
-		print OUTFILE "$header";
+	foreach my $varFile ( sort( @var_files ) ) {
+        my ($sample_name) = $varFile =~ /^(.*)_filtered.*/;
+		open ( VARFILE, "<", "$colVarsDir/$varFile" ) || die "Can't open this file for some reason: '$varFile'\n";
+		print $summary_fh "::: Variant Calls for $sample_name :::\n\n";
+        print $summary_fh "$tab_header";
 
-		while (<VARFILE>) {
-			next if ( /Chrom/ );
-			my @lines = split( /\t/, $_ );
-			print OUTFILE join( "\t", $barcodes{$index}, @lines );
-		}
-		print OUTFILE "\n";
+        print $summary_fh "$sample_name\t$_" while (<VARFILE>);
+        print $summary_fh "\n";
 	}
+    return;
 }
