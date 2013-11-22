@@ -19,3 +19,7 @@ Start of versioning docs for this package.
 9/3/13 - v8.8.2
     - Cleaned up the lookup tables and changed some of the start positions of the variants in the table to 
       match the output of TVC.  This will help in scripting later on.
+
+11/22/13 - v2.0.0
+    - Beta version of varCollector compatible with TSv4.0.  Have moved to GIT repository to better track changes
+      and versions.  Still waiting for BRB support for VCF file compatibility with GeneMed
