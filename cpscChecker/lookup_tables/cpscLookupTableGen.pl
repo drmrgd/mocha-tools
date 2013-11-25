@@ -11,13 +11,14 @@ use strict;
 use Data::Dumper;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v0.0.1";
+my $version = "v1.0.0";
 my $description = <<"EOT";
-<fill_in_program_description>
+Program to generate new lookup tables used by the cpscChecker utility based on a master file of all 
+variants and a file containing a list of COSMIC IDs to pull from that table.  
 EOT
 
 my $usage = <<"EOT";
-USAGE: $0 [options] <master_cpsc_file> <lookup>
+USAGE: $0 [options] <master_cpsc_file> <lookup_file>
     -o, --output    Send output to custom output file.  Default is STDOUT.
     -v, --version   Version information
     -h, --help      Print this help information
@@ -54,7 +55,6 @@ while ( scalar( @ARGV ) > 0 ) {
 &version_info if $verInfo;
 
 
-# FIXME: Make sure enough args passed to script.  Optional depending on how args are handled.
 if ( scalar( @ARGV ) != 2 ) {
 	print "ERROR: Not enough arguments passed to script!\n\n";
 	print "$usage\n";
