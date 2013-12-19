@@ -10,7 +10,7 @@ use warnings;
 use strict;
 use JSON;
 use Getopt::Long;
-use Data::Dump;
+use Data::Dumper;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
 my $version = "v2.0.0";
