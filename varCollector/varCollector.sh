@@ -103,7 +103,7 @@ echo "Making a collectedVariants dir..."
 mkdir $colvarsDir;
 # Use custom key instead of generating one and copy to $colvarsDir
 if [[ $customKey ]]; then
-	cp $customKey $colvarsDir/
+	cp $customKey "$colvarsDir/sampleKey.txt"
 else
     echo "Generating sampleKey.txt..."
     eval "perl $SCRIPTPATH/sampleKeyGen.pl -o $colvarsDir/sampleKey.txt" 
