@@ -4,20 +4,18 @@
 #
 # 11/7/2013 - Updated for TSv4.0
 #
-# TODO:
-#   - Work out the filtered VCF file based on GeneMed requirements. 
-#
 # Created: 2/25/2013	Dave Sims
 #########################################################################################################################
 use warnings;
 use strict;
 use Getopt::Long;
 use Data::Dumper;
+use Data::Dump;
 use Cwd; 
 use File::Copy;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.3";
+my $version = "v2.0.4";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -107,9 +105,7 @@ if ( $sampleNumber == 0  || ( $sampleNumber + 1 ) < $numBC ) { # Have to add 1 t
 	}
 }
 
-# XXX: Figure out what to keep and copy over.
-# Move to the variantCaller_out directory and grab copies of the variants files
-# Switch to the alleles.xls table as variants.xls is deprecated.
+# Move to the variantCaller_out directory and grab copies of the variants files  Switch to the alleles.xls table as variants.xls is deprecated.
 chdir( "$TVCout" );
 foreach my $sample ( @sample_dirs ) {
     my $tab_file = "$sample/alleles.xls"; # replaces variants.xls
@@ -127,8 +123,6 @@ foreach my $sample ( @sample_dirs ) {
 
 	# Grab vcf files
 	if ( -f $vcf_file ) {
-		#copy( "$sample/TSVC_variants.vcf", "$colVarsDir/$barcodes{$sample}_variants.vcf" ); 
-		#copy( $vcf_file, "$colVarsDir/${sample}_${runid}.vcf" ); 
 		copy( $vcf_file, "$colVarsDir/$barcodes{$sample}_${runid}.vcf" ); 
 		filter_vars( \$vcf_file );
 	} else {
@@ -148,24 +142,18 @@ sub filter_vars {
 	my ($barcode) = $$varfile =~ /^(IonXpress_\d+)/;
 	my $sample_name = $barcodes{$barcode};
 
-    # TODO: setup the headers here for use downstream
+    # Setup the headers here for use downstream
     my $data_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s %8.2f %12.0f %8.0f %8.0f %8.0f %5.0f     %-12s\n";
-    
     my $theader_format = "%-7s %-12s %-8s %-16s %-6s %-12s %-12s   %-8s      %-6s    %-6s   %-7s %-8s %-5s %-12s\n";
     my @tab_fields = qw{ Chrom Position Gene AmpID Type Ref Alt Freq Qual Cov RefCov VarCov HP Hotspot };
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
 	if ( $$varfile =~ /\.vcf$/ ) {
         my $outfile = "$colVarsDir/${sample_name}_${runid}_filtered.vcf";
-		# TODO:
-		# 	- Can filter VCF on 'NOCALL'
-		# 	- Can also consider filtering VCF file on GT field (either ./. or 0/0 
-		# 			perl -ane 'next if /^#/; print join( "\t", @F[0,1,2,3,4,5,6], ".", @F[8,9] ), "\n" if ( $F[9] !~ /^([.0]\/[.0]):/g )'
         return;
 	}
     elsif ( $$varfile =~ /\.xls$/ ) {
 		# Filter alleles.xls 
-
 		open( my $xls_fh, "<", $$varfile ) || die "Can't open the variants.xls file for reading";
 		@filtered_data =  grep { ! /(Absent|No Call)/ } <$xls_fh>; # Get only variant containing lines
 
