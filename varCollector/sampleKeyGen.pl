@@ -11,9 +11,10 @@ use strict;
 use JSON;
 use Getopt::Long;
 use Data::Dumper;
+use Data::Dump;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.0";
+my $version = "v2.0.1";
 my $description = <<"EOT";
 Program to read in the datasets_pipeline.json file setup during the planning for an Ion Torrent run, and 
 create a tab delimited sampleKey.txt file used in the rest of the variant reporting downstream. 
@@ -91,12 +92,18 @@ if ( ! $$parsed_json{'barcode_config'} || $$parsed_json{'barcode_config'}->{'bar
 	exit 1;
 }
 
-
 for my $read_bc ( keys %{$parsed_json->{'read_groups'}} ) {
 	next if ( $read_bc =~ /nomatch/ );
 	my $barcode = $$parsed_json{'read_groups'}->{$read_bc}->{'barcode_name'};
     my $sample = $$parsed_json{'read_groups'}->{$read_bc}->{'sample'};
 	$bc_hash{$barcode} = $sample;
+}
+
+# Make sure that there is data to be printed, otherwise have to build a sample key manually
+if ( ( grep { $bc_hash{$_} =~ /none/i } keys %bc_hash ) == scalar( keys %bc_hash ) ) {
+    print "ERROR: No samples listed for any of the barcodes in the experiment JSON file.  A run plan was possibly not uploaded prior to running.\n";
+    print "You will need to manually create a sampleKey for this experiment\n";
+    exit 1;
 }
 
 # Create a sampleKey file from the final hash
