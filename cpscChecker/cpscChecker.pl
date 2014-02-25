@@ -4,46 +4,29 @@
 # plasmid was not found, create a new list indicating which plasmids were not found. Print out
 # results to a file.
 #
-# 7/10/2013 
-#     - Added capability for CPSCv5
-#
-# 8/15/2013 
-#     - Added capability for MPACT CPSC sample.
-#     - Cleaned up and reformatted the code a bit.
-#
-# 8/30/2013 
-#     - Added a fix to recover a COSMIC ID from the original lookup file where there's
-#       none present (e.g. '---') due to the HotSpots BED file not having an entry
-#       for that particular plasmid.  This will help some downstream analysis.
-#
-#     - Fixed the lookup tables
-#
-# 11/15/2013
-#     - Started Dev of v2.0 to be compatible with TSv4.0
-#
 # Created 2/24/2013 - Dave Sims
-#
 ###################################################################################################		
 
 use warnings;
 use strict;
 use Getopt::Long;
 use Data::Dumper;
+use Data::Dump;
 use Cwd 'abs_path';
 use File::Basename;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.1";
+my $version = "v2.0.2";
 my $description = <<"EOT";
 
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
-a TVC variants.xls file to check to see if the plasmid was seen in the sample, and print
+a TVC 'alleles.xls' file to check to see if the plasmid was seen in the sample, and print
 out the data.  If the plasmid was not found, create a new list indicating which plasmids
 were not found.
 EOT
 
 my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <3,4,5,mc>  <variant_call_file>
+USAGE: $scriptname [options] -l <3,4,5,mc>  <alleles.xls>
 
     -l, --lookup           CPSC lookup version to use (3, 4, 5, or mc)
     -o, --output <file>    Output file name (default is 'output.txt')
