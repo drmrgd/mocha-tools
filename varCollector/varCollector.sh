@@ -13,7 +13,7 @@
 
 #set -x
 
-VERSION="$(basename $0) - v2.0.0"
+VERSION="$(basename $0) - v2.0.2"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -21,7 +21,7 @@ Program to collect variant call files from an Ion Torrent run and run the cpscCh
 program needs to be run from an experiment results directory, and must be run after the Torrrent Variant
 Caller (TVC) plugin has been run.  
 
-    -l    Non-default lookup file for the cpscChecker utility (default: 3)
+    -l    Non-default lookup file for the cpscChecker utility (default: mc)
     -s    Custom sampleKey file rather than the default based on the ion_params_00.json file
     -r    Run plugin without cpscChecker (R&D Server without standard sample IDs)
     -v    Version information
@@ -35,7 +35,7 @@ resultsDir="$(pwd)"
 colvarsDir="$resultsDir/collectedVariants"
 runName="$(echo "$resultsDir" | perl -pe 's/.*user_([P|M]CC-\d+)-\d+.*/$1/')"
 cpscSample="IonXpress_001.txt"
-cpsc_lookup=3 #Default lookup file for cpscChecker (see cpscChecker for inforamation)
+cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
 
 # Get absolute path of scriptname in order to be more flexible later. 
