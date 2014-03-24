@@ -23,3 +23,7 @@ Start of versioning docs for this package.
 11/22/13 - v2.0.0
     - Beta version of varCollector compatible with TSv4.0.  Have moved to GIT repository to better track changes
       and versions.  Still waiting for BRB support for VCF file compatibility with GeneMed
+
+2/25/2014 - v2.0.2
+    - First launch of package with TSv4.0 including all bug fixes and updates to be fully compatible with TSv4.0.
+      If no problems, scripts will be used for varCollector plugin.
