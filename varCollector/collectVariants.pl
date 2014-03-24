@@ -149,6 +149,7 @@ sub filter_vars {
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
 	if ( $$varfile =~ /\.vcf$/ ) {
+        # Holder for potentially filtering VCF files later
         my $outfile = "$colVarsDir/${sample_name}_${runid}_filtered.vcf";
         return;
 	}
