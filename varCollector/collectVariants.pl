@@ -15,7 +15,7 @@ use Cwd;
 use File::Copy;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.4";
+my $version = "v2.1.4";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -61,7 +61,9 @@ my $resultsDir = getcwd;
 if ( ! -d "$resultsDir/$TVCout" ) {
 	die "ERROR: Either you are not running this script from a run results folder, or TVC has not yet been run on this sample\n";
 }
-my ($runid) = $resultsDir =~ /([P|M]CC-\d+)/;
+
+#my ($runid) = $resultsDir =~ /([P|M]CC-\d+)/;
+my ($runid) = $resultsDir =~ /((?:[P|M]CC|MC[12])-\d+)/;
 
 # Make collectedVariants directory
 my $colVarsDir = "$resultsDir/collectedVariants/";
@@ -149,7 +151,6 @@ sub filter_vars {
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
 	if ( $$varfile =~ /\.vcf$/ ) {
-        # Holder for potentially filtering VCF files later
         my $outfile = "$colVarsDir/${sample_name}_${runid}_filtered.vcf";
         return;
 	}
