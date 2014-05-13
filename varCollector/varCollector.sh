@@ -13,7 +13,7 @@
 
 #set -x
 
-VERSION="$(basename $0) - v2.0.2"
+VERSION="$(basename $0) - v2.1.0"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -33,10 +33,13 @@ EOT
 TVCout="plugin_out/variantCaller_out"
 resultsDir="$(pwd)"
 colvarsDir="$resultsDir/collectedVariants"
-runName="$(echo "$resultsDir" | perl -pe 's/.*user_([P|M]CC-\d+)-\d+.*/$1/')"
+runName="$(echo "$resultsDir" | perl -pe 's/.*user_((?:[P|M]CC-\d+|MC[12]))-\d+.*/\1/')"
 cpscSample="IonXpress_001.txt"
 cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
+
+echo "run name: $runName";
+exit;
 
 # Get absolute path of scriptname in order to be more flexible later. 
 SCRIPT=$(readlink -f $0)
