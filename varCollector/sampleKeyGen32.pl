@@ -78,7 +78,8 @@ my $parsed_json = decode_json( $json_in );
 my $barcodedSamples = $parsed_json->{'plan'}->{'barcodedSamples'};
 my @json_lines = split( /,/, $barcodedSamples );
 my $instrument = $parsed_json->{'pgmName'};
-my ( $run_num ) = $parsed_json->{'resultsName'} =~ /.*user_([PM]CC-\d+).*/;
+#my ( $run_num ) = $parsed_json->{'resultsName'} =~ /.*user_([PM]CC-\d+).*/;
+my ( $run_num ) = $parsed_json->{'resultsName'} =~ /Auto_user_((?:[PM]CC|MC[12])-\d+).*/;
 
 if ( $instrument eq 'uploads' ) {
     print "Detected imported run.  Using previous index information from $run_num\n";
@@ -93,8 +94,6 @@ while ( <$bctable> ) {
 	chomp;
 	my @line = split( /\t/, $_ );
 
-	#$bclist{$line[0]} = $line[1] if ( $instrument =~ /MCC-CLIA/ ); # Standard for CLIA TS
-	#$bclist{$line[0]+16} = $line[1] if ( $instrument =~ /PCCPGM/ ); # Add offset of 16 to account R&D TS difference.
     given ( $instrument ) {
         when ( /MCC-CLIA/ ) { $bclist{$line[0]} = $line[1] }
         when ( /PCCPGM/ )    { $bclist{$line[0]+16} = $line[1] }
