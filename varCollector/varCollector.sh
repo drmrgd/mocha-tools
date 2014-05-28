@@ -38,9 +38,6 @@ cpscSample="IonXpress_001.txt"
 cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
 
-echo "run name: $runName";
-exit;
-
 # Get absolute path of scriptname in order to be more flexible later. 
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=$(dirname $SCRIPT)
