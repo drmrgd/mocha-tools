@@ -8,10 +8,12 @@
 
 use warnings;
 use strict;
-use Data::Dumper;
+use File::Basename;
+use Data::Dump;
 
-( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v1.0.0";
+#( my $scriptname = $0 ) =~ s/^(.*\/)+//;
+my $scriptname = basename($0);
+my $version = "v2.0.0_062714";
 my $description = <<"EOT";
 Program to generate new lookup tables used by the cpscChecker utility based on a master file of all 
 variants and a file containing a list of COSMIC IDs to pull from that table.  
@@ -74,14 +76,9 @@ if ( $outfile ) {
 # Load in the master cpsc variants table and check to make sure it's OK
 my $master_cpsc_file = shift;
 open( my $cpsc_fh, "<", $master_cpsc_file ) || die "Can not open the master CPSC file for reading: $!";
-chomp( my @cpsc_vars = <$cpsc_fh> );
-close( $cpsc_fh );
-
-if ( length( $cpsc_vars[0] ) < 11 ) {
-	print "ERROR: The master CPSC variants table does not appear to be correctly formatted.\n\n";
-	print $usage;
-	exit 1;
-}
+#chomp( my @cpsc_vars = <$cpsc_fh> );
+my %plas_data = map { /(COSM\d+)/; $1 => $_ } <$cpsc_fh>;
+close $cpsc_fh;
 
 # Load in the cosmic variants list to extract and make sure it's formatted correctly.
 my $cos_lookup_file = shift;
@@ -97,10 +94,14 @@ while (<$lookup_fh>) {
 	}
 }
 
-
-foreach ( @cpsc_vars ) {
-	my @line = split;
-	if ( grep { $line[4] ~~ $_ } @cosids ) {
-		print $out_fh join( "\t", @line ), "\n";
-	}
+my @err;
+for my $cosid ( @cosids ) {
+    if ( exists $plas_data{$cosid} ) {
+        print $out_fh $plas_data{$cosid};
+    } else {
+       push( @err, "WARNING: '$cosid' does not exist in the master lookup table!\n" );
+    }
 }
+
+# Output errors at the bottom so we can see them with long output
+print "\n", join( "\n", @err ) if @err;
