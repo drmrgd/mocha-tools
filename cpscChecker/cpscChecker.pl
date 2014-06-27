@@ -10,15 +10,13 @@
 use warnings;
 use strict;
 use Getopt::Long;
-use Data::Dumper;
 use Data::Dump;
 use Cwd 'abs_path';
 use File::Basename;
 
-( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.2";
+my $scriptname = basename($0);
+my $version = "v2.1.0";
 my $description = <<"EOT";
-
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
 a TVC 'alleles.xls' file to check to see if the plasmid was seen in the sample, and print
 out the data.  If the plasmid was not found, create a new list indicating which plasmids
@@ -26,9 +24,9 @@ were not found.
 EOT
 
 my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <3,4,5,mc>  <alleles.xls>
+USAGE: $scriptname [options] -l <3, 4, 4.1, 5, mc>  <alleles.xls>
 
-    -l, --lookup           CPSC lookup version to use (3, 4, 5, or mc)
+    -l, --lookup           CPSC lookup version to use (3, 4, 4.1, 5, or mc)
     -o, --output <file>    Output file name (default is 'output.txt')
     -p, --preview          Do not write output to a file.  Print to STDOUT just for testing.
     -h, --help             Display Help information
@@ -91,6 +89,7 @@ my $lookup;
 my $lookup_path = "$scriptdir/lookup_tables";
 ( $ltable eq '3' )   ? $lookup = "${lookup_path}/cpsc_v3_lookupTable.txt"  :
 ( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"  :
+( $ltable eq '4.1' ) ? $lookup = "${lookup_path}/cpsc_v41_lookupTable.txt" :
 ( $ltable eq '5' )   ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"  :
 ( $ltable eq 'mc' )  ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"  :
 die "ERROR: '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','5', or 'mc'.\n";
