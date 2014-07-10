@@ -9,16 +9,15 @@
 
 use warnings;
 use strict;
-use Getopt::Long;
-use Data::Dumper;
+use Getopt::Long qw( :config bundling auto_abbrev no_ignore_case );
 use Data::Dump;
 use Cwd 'abs_path';
 use File::Basename;
+use Term::ANSIColor;
 
-( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.2";
+my $scriptname = basename($0);
+my $version = "v2.0.3_071014";
 my $description = <<"EOT";
-
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
 a TVC 'alleles.xls' file to check to see if the plasmid was seen in the sample, and print
 out the data.  If the plasmid was not found, create a new list indicating which plasmids
@@ -29,7 +28,8 @@ my $usage = <<"EOT";
 USAGE: $scriptname [options] -l <3,4,5,mc>  <alleles.xls>
 
     -l, --lookup           CPSC lookup version to use (3, 4, 5, or mc)
-    -o, --output <file>    Output file name (default is 'output.txt')
+    -V, --VCF              EXPERIMENTAL: run on vcfExtractor output instead of 'alleles.xls'
+    -o, --output <file>    Output file name (default is 'cpscChecker_output.txt')
     -p, --preview          Do not write output to a file.  Print to STDOUT just for testing.
     -h, --help             Display Help information
     -v, --version          Version information
@@ -41,12 +41,14 @@ my $outfile = "cpscChecker_output.txt";
 my $help;
 my $ltable;
 my $preview;
+my $vcf;
 
-GetOptions( "lookup=s"    => \$ltable,
-	        "preview"     => \$preview,
-            "output=s"    => \$outfile,
-            "version"     => \$ver_info,
-            "help"        => \$help )
+GetOptions( "lookup|l=s"    => \$ltable,
+            "VCF|V"         => \$vcf,
+	        "preview|p"     => \$preview,
+            "output|o=s"    => \$outfile,
+            "version|v"     => \$ver_info,
+            "help|h"        => \$help )
 		or die $usage;
 
 sub help {
@@ -59,17 +61,24 @@ sub version {
 	exit;
 }
 
+# Set up some nice output coloring
+my $warn = colored("WARN:", 'yellow on_black');
+my $info = colored("INFO:", 'cyan on_black');
+my $err = colored("ERROR:", 'red on_black');
+my $pass = colored("PASS:", 'green on_black');
+
 help if $help;
 version if $ver_info;
 
 if ( @ARGV != 1 ) {
-		printf "%s: Invalid number of arguments\n\n", $scriptname;
-		printf "%s\n", $usage;
+		#print $err . "Invalid number of arguments\n\n";
+		print "$err Invalid number of arguments\n\n";
+        print $usage;
 		exit 1;
 }
 
 if ( ! $ltable ) {
-	print "ERROR: You must supply a lookup table for this analysis.\n\n";
+	print "$err You must supply a lookup table for this analysis.\n\n";
 	print $usage;
 	exit 1;
 }
@@ -79,8 +88,9 @@ my $out_fh;
 if ( $preview ) {
 	$out_fh = \*STDOUT;
 } else {
-	open( $out_fh, ">", $outfile ) || die "Can't open the output file '$outfile' for writing: $!";
+	open( $out_fh, ">", $outfile ) || die "$err Can't open the output file '$outfile' for writing: $!";
 }
+
 
 #########------------------------------ END ARG Parsing ---------------------------------#########
 
@@ -93,37 +103,27 @@ my $lookup_path = "$scriptdir/lookup_tables";
 ( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"  :
 ( $ltable eq '5' )   ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"  :
 ( $ltable eq 'mc' )  ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"  :
-die "ERROR: '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','5', or 'mc'.\n";
-print "The selected lookup table ['$ltable'] is: '$lookup'\n";
+die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','5', or 'mc'.\n";
+print colored("The selected lookup table ['$ltable'] is: '$lookup'\n", 'green on_black');
 
 # Load up hash lookup table
 open( my $lookup_fh, "<", $lookup ) || die "Lookup file not found: '$!'";
 my %plas_lookup = map { my @fields = split; "$fields[1]:$fields[2]" => [@fields] } <$lookup_fh>;
 close( $lookup_fh );
 
-# load up query table and print matching records; have to use alleles.xls files now
+#dd \%plas_lookup;
+#exit;
+
 my $query = shift;
-open ( my $cpsc_fh, "<", $query ) || die "Query table '$query' not found: '$!'\n";
 my ( %results, %counter );
-while (<$cpsc_fh>) {
-	chomp;
-	next if ( /Chrom/ || /Absent/ || /No Call/ ); 
-	my @line = split;
-	my $variant_id = "$line[0]:$line[14]";
-    my $ref = $line[2];
-    my $alt = $line[3];
 
-	next if ( ! exists $plas_lookup{$variant_id} );
+# XXX
+# TODO: this sub works.  now make the normal interchangeable with this one to get the rest of the output
+($vcf) ? vcf_proc( \$query ) : alleles_proc( \$query );
 
-	#my ($cosid) = grep { $line[11] =~ /($_)/ } @{$plas_lookup{$variant_id}}; 
-    my $cosid = $plas_lookup{$variant_id}[4]; # Get COSMIC ID from lookup table as it's more accurate than BED file.
-
-	# Use Genotype field to create REF and ALT data
-	#my ( $ref, $alt ) = $line[6] =~ /^(\w+)\/(\w+)$/;
-    
-	$results{$variant_id} = [@line[12,0,14,13],$ref,$alt,@line[6,18],$cosid]; 
-	$counter{$variant_id} = 1;
-}
+dd \%counter;
+dd \%results;
+exit;
 
 # Format the fields
 my ( $rwidth, $awidth ) = field_format( \%results );
@@ -167,4 +167,57 @@ sub field_format {
 	}
 
 	return ($rwidth, $awidth);
+}
+
+sub alleles_proc {
+    # Process the alleles.xls file and store data in %counter and %results
+    open ( my $cpsc_fh, "<", $query ) || die "Query table '$query' not found: '$!'\n";
+    while (<$cpsc_fh>) {
+        chomp;
+        next if ( /Chrom/ || /Absent/ || /No Call/ ); 
+        my @line = split;
+        my $variant_id = "$line[0]:$line[14]"; # chr:pos
+        my $ref = $line[2];
+        my $alt = $line[3];
+
+        next if ( ! exists $plas_lookup{$variant_id} );
+
+        my $cosid = $plas_lookup{$variant_id}[4]; # Get COSMIC ID from lookup table as it's more accurate than BED file.
+
+        $results{$variant_id} = [@line[12,0,14,13],$ref,$alt,@line[6,18],$cosid]; 
+        $counter{$variant_id} = 1;
+    }
+}
+
+sub vcf_proc {
+    # Process the results of running vcfExtractor -nN <vcf_file> instead of relying on alleles.xls
+
+    my $data_file = shift;
+
+    open ( my $cpsc_fh, "<", $$data_file ) || die "Query table '$$data_file' not found: '$!'\n";
+    my $header = <$cpsc_fh>;
+    
+    # Check to be sure we really have a vcfExtractor output file
+    if ( $header !~ /^CHROM:POS/ ) {
+        print "\nERROR: input file '$$data_file' does not appear to be vcfExtractor output. Check your input file!\n\n";
+        print $usage;
+        exit 1;
+    }
+
+    while (<$cpsc_fh>) {
+        my @fields = split;
+        my $variant_id = $fields[0];
+        my $ref = $fields[1];
+        my $alt = $fields[2];
+        my ($chr, $pos) = split( /:/, $variant_id );
+
+        next if ( ! exists $plas_lookup{$variant_id} );
+
+        my $cosid = $plas_lookup{$variant_id}[4]; # Get COSMIC ID from lookup table as it's more accurate than BED file.
+        my $gene = $plas_lookup{$variant_id}[0]; # Have to use lookup for this too; no data in the VCF file
+        my $ampid = $plas_lookup{$variant_id}[7]; # Ditto
+        
+        $results{$variant_id} = [$gene, $chr, $pos, $ampid, $ref, $alt, @fields[5,6], $cosid]; 
+        $counter{$variant_id} = 1;
+    }
 }
