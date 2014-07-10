@@ -12,11 +12,12 @@ use strict;
 use Getopt::Long qw( :config bundling auto_abbrev no_ignore_case );
 use Data::Dump;
 use Cwd 'abs_path';
+use Sort::Naturally;
 use File::Basename;
 use Term::ANSIColor;
 
 my $scriptname = basename($0);
-my $version = "v2.0.3_071014";
+my $version = "v2.1.0_071014";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
 a TVC 'alleles.xls' file to check to see if the plasmid was seen in the sample, and print
@@ -118,33 +119,45 @@ my $query = shift;
 my ( %results, %counter );
 
 # XXX
-# TODO: this sub works.  now make the normal interchangeable with this one to get the rest of the output
+# TODO: this sub works. Check that we're getting the input we expect.  Not seeing any indels from the vcfExtractor output 
 ($vcf) ? vcf_proc( \$query ) : alleles_proc( \$query );
 
-dd \%counter;
-dd \%results;
-exit;
+#dd \%counter;
+#dd \%results;
+#exit;
 
 # Format the fields
-my ( $rwidth, $awidth ) = field_format( \%results );
+#my ( $rwidth, $awidth ) = field_format( \%results );
+my $col_width = field_format( \%results, [4,5] );
 
 # Print out the header for the detected plasmids section of the report
 print $out_fh "::: Plasmid Variants Detected in Sample :::\n\n";
-printf $out_fh "%-9s %-9s %-13s %-17s %-${rwidth}s %-${awidth}s %-9s %-9s %-13s\n", qw( Gene Chr Position AmpID Ref Alt Freq Cov COSID );
+#printf $out_fh "%-9s %-9s %-13s %-17s %-${rwidth}s %-${awidth}s %-9s %-9s %-13s\n", qw( Gene Chr Position AmpID Ref Alt Freq Cov COSID );
+printf $out_fh "%-9s %-9s %-13s %-17s %-$${col_width[0]}s %-$${col_width[1]}s %-9s %-9s %-13s\n", qw( Gene Chr Position AmpID Ref Alt Freq Cov COSID );
 
 # Print out variant call info for found plasmids
-for ( sort { $results{$a}[0] cmp $results{$b}[0] } keys  %results ) {
-	printf $out_fh "%-9s %-9s %-13s %-17s %-${rwidth}s %-${awidth}s %-9.2f %-9.0f %-13s\n", @{$results{$_}};
+#for ( sort { $results{$a}[0] cmp $results{$b}[0] } keys %results ) {
+for ( sort { 
+        ncmp($results{$a}[0], $results{$b}[0]) ||
+        $results{$a}[2] <=> $results{$b}[2]
+    } keys %results ) {
+	#printf $out_fh "%-9s %-9s %-13s %-17s %-${rwidth}s %-${awidth}s %-9.2f %-9.0f %-13s\n", @{$results{$_}};
+	printf $out_fh "%-9s %-9s %-13s %-17s %-$${col_width[0]}s %-$${col_width[1]}s %-9.2f %-9.0f %-13s\n", @{$results{$_}};
 }
-
 # Print header for list of plasmids that aren't in the sample
+$col_width = field_format( \%plas_lookup, [5,6] );
+#print "col width: $$col_width[0]\n";
+#exit;
+
 print $out_fh "\n::: Plasmids missing in sample :::\n\n";
-print $out_fh "Gene\tChr\tStart\t\tEnd\t\tCOSID\t\tCDS\t\tSequence\tAmpID\n";
+#print $out_fh "Gene\tChr\tStart\t\tEnd\t\tCOSID\t\tCDS\t\tSequence\tAmpID\n";
+printf $out_fh "%-9s %-9s %-13s %-13s %-13s %-$${col_width[0]}s %-$${col_width[1]}s %-20s\n", qw( Gene Chr Start End COSID CDS Sequence AmpID );
 
 # Print out list of plasmids that were missed
 for my $plasmid ( keys %plas_lookup ) {
 	if ( ! exists  $counter{$plasmid} ) {
-		print $out_fh join( "\t", @{$plas_lookup{$plasmid}} ), "\n";
+        printf $out_fh "%-9s %-9s %-13s %-13s %-13s %-$${col_width[0]}s %-$${col_width[1]}s %-20s\n", @{$plas_lookup{$plasmid}} ;
+		#print $out_fh join( "\t", @{$plas_lookup{$plasmid}} ), "\n";
 	}
 }
 
@@ -154,26 +167,42 @@ close( $out_fh );
 sub field_format {
 	# Try to get the largest field width to format the ouput nicely
 	my $data = shift;
-	my $rwidth = 0;
-	my $awidth = 0;
+    my $cols = shift;
 
-	for my $var ( keys %$data ) {
-		if ( length $$data{$var}->[4] > $rwidth ) {
-			$rwidth = (length $$data{$var}->[4]) + 4;
-		}
-		if ( length $$data{$var}->[5] > $awidth ) {
-			$awidth = (length $$data{$var}->[5]) + 4;
-		}
-	}
+    my @format_widths;
+    #my $rwidth = 0;
+    #my $awidth = 0;
 
-	return ($rwidth, $awidth);
+    for my $col (@$cols) {
+        my $width = 0;
+        for my $elem ( keys %$data ) {
+            #print $$data{$elem}->[$field], "\n";
+            if ( length $$data{$elem}->[$col] > $width ) {
+                $width = ( length $$data{$elem}->[$col] ) + 4;
+            }
+        }
+        push( @format_widths, $width );
+    }
+
+    print "formatted fields: \n";
+    dd \@format_widths;
+	#for my $var ( keys %$data ) {
+		#if ( length $$data{$var}->[4] > $rwidth ) {
+			#$rwidth = (length $$data{$var}->[4]) + 4;
+		#}
+		#if ( length $$data{$var}->[5] > $awidth ) {
+			#$awidth = (length $$data{$var}->[5]) + 4;
+		#}
+	#}
+
+	#return ($rwidth, $awidth);
+    return( \@format_widths );
 }
 
 sub alleles_proc {
     # Process the alleles.xls file and store data in %counter and %results
-    open ( my $cpsc_fh, "<", $query ) || die "Query table '$query' not found: '$!'\n";
+    open ( my $cpsc_fh, "<", $query ) || die "Can not open the file '$query' for reading: $!";
     while (<$cpsc_fh>) {
-        chomp;
         next if ( /Chrom/ || /Absent/ || /No Call/ ); 
         my @line = split;
         my $variant_id = "$line[0]:$line[14]"; # chr:pos
@@ -199,7 +228,7 @@ sub vcf_proc {
     
     # Check to be sure we really have a vcfExtractor output file
     if ( $header !~ /^CHROM:POS/ ) {
-        print "\nERROR: input file '$$data_file' does not appear to be vcfExtractor output. Check your input file!\n\n";
+        print "\n$err input file '$$data_file' does not appear to be vcfExtractor output. Check your input file!\n\n";
         print $usage;
         exit 1;
     }
