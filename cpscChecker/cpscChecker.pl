@@ -201,9 +201,17 @@ sub field_format {
 
 sub alleles_proc {
     # Process the alleles.xls file and store data in %counter and %results
+    my $data_file = shift;
+
     open ( my $cpsc_fh, "<", $query ) || die "Can not open the file '$query' for reading: $!";
+    my $header = <$cpsc_fh>;
+    if ( $header !~ /Chrom/ ) {
+        print "\n$err input file '$$data_file' does not appear to be an alleles.xls type file.  Check your input file!\n\n";
+        print $usage;
+        exit 1;
+    }
     while (<$cpsc_fh>) {
-        next if ( /Chrom/ || /Absent/ || /No Call/ ); 
+        #next if ( /Chrom/ || /Absent/ || /No Call/ ); 
         my @line = split;
         my $variant_id = "$line[0]:$line[14]"; # chr:pos
         my $ref = $line[2];
