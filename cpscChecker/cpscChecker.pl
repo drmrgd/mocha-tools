@@ -26,9 +26,9 @@ were not found.
 EOT
 
 my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <3,4,5,mc>  <alleles.xls>
+USAGE: $scriptname [options] -l <3,4,4.1,5,mc>  <alleles.xls>
 
-    -l, --lookup           CPSC lookup version to use (3, 4, 5, or mc)
+    -l, --lookup           CPSC lookup version to use (3, 4, 4.1  5, or mc)
     -V, --VCF              EXPERIMENTAL: run on vcfExtractor output instead of 'alleles.xls'
     -o, --output <file>    Output file name (default is 'cpscChecker_output.txt')
     -p, --preview          Do not write output to a file.  Print to STDOUT just for testing.
@@ -102,14 +102,23 @@ my $lookup;
 my $lookup_path = "$scriptdir/lookup_tables";
 ( $ltable eq '3' )   ? $lookup = "${lookup_path}/cpsc_v3_lookupTable.txt"  :
 ( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"  :
+( $ltable eq '4.1' ) ? $lookup = "${lookup_path}/cpsc_v41_lookupTable.txt"  :
+#( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.old"  :
 ( $ltable eq '5' )   ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"  :
 ( $ltable eq 'mc' )  ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"  :
-die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','5', or 'mc'.\n";
+die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','4.1', '5', or 'mc'.\n";
 print colored("The selected lookup table ['$ltable'] is: '$lookup'\n", 'green on_black');
 
 # Load up hash lookup table
 open( my $lookup_fh, "<", $lookup ) || die "Lookup file not found: '$!'";
-my %plas_lookup = map { my @fields = split; "$fields[1]:$fields[2]" => [@fields] } <$lookup_fh>;
+my %plas_lookup; 
+
+# Need to use 0 based position for XLS file and 1 based for VCF
+if ($vcf) {
+    %plas_lookup = map { my @fields = split; "$fields[1]:$fields[3]" => [@fields] } <$lookup_fh>;
+} else {
+    %plas_lookup = map { my @fields = split; "$fields[1]:$fields[2]" => [@fields] } <$lookup_fh>;
+}
 close( $lookup_fh );
 
 #dd \%plas_lookup;
