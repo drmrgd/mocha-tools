@@ -103,7 +103,6 @@ my $lookup_path = "$scriptdir/lookup_tables";
 ( $ltable eq '3' )   ? $lookup = "${lookup_path}/cpsc_v3_lookupTable.txt"  :
 ( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"  :
 ( $ltable eq '4.1' ) ? $lookup = "${lookup_path}/cpsc_v41_lookupTable.txt"  :
-#( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.old"  :
 ( $ltable eq '5' )   ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"  :
 ( $ltable eq 'mc' )  ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"  :
 die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','4.1', '5', or 'mc'.\n";
