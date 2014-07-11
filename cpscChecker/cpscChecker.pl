@@ -205,7 +205,7 @@ sub vcf_proc {
     # Process the results of running vcfExtractor -nN <vcf_file> instead of relying on alleles.xls
     my $data_file = shift;
 
-    open ( my $cpsc_fh, "<", $$data_file ) || die "Query table '$$data_file' not found: '$!'\n";
+    open ( my $cpsc_fh, "<", $$data_file ) || die "$err Query table '$$data_file' not found: '$!'\n";
     my $header = <$cpsc_fh>;
     
     # Check to be sure we really have a vcfExtractor output file
