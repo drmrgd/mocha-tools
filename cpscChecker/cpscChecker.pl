@@ -4,6 +4,9 @@
 # plasmid was not found, create a new list indicating which plasmids were not found. Print out
 # results to a file.
 #
+# TODO:
+#   - Add the ability to load up a custom lookup table from anywhere.
+#
 # Created 2/24/2013 - Dave Sims
 ###################################################################################################		
 
@@ -17,7 +20,7 @@ use File::Basename;
 use Term::ANSIColor;
 
 my $scriptname = basename($0);
-my $version = "v2.1.0_071014";
+my $version = "v3.0.0_071114";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
 a TVC 'alleles.xls' file to check to see if the plasmid was seen in the sample, and print
@@ -26,10 +29,11 @@ were not found.
 EOT
 
 my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <3,4,4.1,5,mc>  <alleles.xls>
+USAGE: $scriptname [options] -l <3,4,4.1,4ocp,5,mc>  <alleles.xls>
 
-    -l, --lookup           CPSC lookup version to use (3, 4, 4.1  5, or mc)
+    -l, --lookup           CPSC lookup table version to use. 
     -V, --VCF              EXPERIMENTAL: run on vcfExtractor output instead of 'alleles.xls'
+    -c, --custom_lookup    Use a custom lookup table rather than hardcoded, prebuilt ones
     -o, --output <file>    Output file name (default is 'cpscChecker_output.txt')
     -p, --preview          Do not write output to a file.  Print to STDOUT just for testing.
     -h, --help             Display Help information
@@ -72,7 +76,6 @@ help if $help;
 version if $ver_info;
 
 if ( @ARGV != 1 ) {
-		#print $err . "Invalid number of arguments\n\n";
 		print "$err Invalid number of arguments\n\n";
         print $usage;
 		exit 1;
@@ -92,7 +95,6 @@ if ( $preview ) {
 	open( $out_fh, ">", $outfile ) || die "$err Can't open the output file '$outfile' for writing: $!";
 }
 
-
 #########------------------------------ END ARG Parsing ---------------------------------#########
 
 # Get the CPSC lookup table
@@ -100,12 +102,13 @@ my $scriptdir = dirname(abs_path($0));
 my $lookup;
 
 my $lookup_path = "$scriptdir/lookup_tables";
-( $ltable eq '3' )   ? $lookup = "${lookup_path}/cpsc_v3_lookupTable.txt"  :
-( $ltable eq '4' )   ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"  :
-( $ltable eq '4.1' ) ? $lookup = "${lookup_path}/cpsc_v41_lookupTable.txt"  :
-( $ltable eq '5' )   ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"  :
-( $ltable eq 'mc' )  ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"  :
-die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','4.1', '5', or 'mc'.\n";
+( $ltable eq '3' )     ? $lookup = "${lookup_path}/cpsc_v3_lookupTable.txt"     :
+( $ltable eq '4' )     ? $lookup = "${lookup_path}/cpsc_v4_lookupTable.txt"     :
+( $ltable eq '4.1' )   ? $lookup = "${lookup_path}/cpsc_v41_lookupTable.txt"    :
+( $ltable eq '4ocp' )  ? $lookup = "${lookup_path}/cpsc_v4ocp_lookupTable.txt"  :
+( $ltable eq '5' )     ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"     :
+( $ltable eq 'mc' )    ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"     :
+die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','4.1', '4ocp', '5', or 'mc'.\n";
 print colored("The selected lookup table ['$ltable'] is: '$lookup'\n", 'green on_black');
 
 # Load up hash lookup table
@@ -120,57 +123,37 @@ if ($vcf) {
 }
 close( $lookup_fh );
 
-#dd \%plas_lookup;
-#exit;
-
 my $query = shift;
 my ( %results, %counter );
 
-# XXX
-# TODO: this sub works. Check that we're getting the input we expect.  Not seeing any indels from the vcfExtractor output 
+# Proc either vcfExtractor output or 'alleles.xls'
 ($vcf) ? vcf_proc( \$query ) : alleles_proc( \$query );
 
-#dd \%counter;
-#dd \%results;
-#exit;
-
-# Format the fields
-#my ( $rwidth, $awidth ) = field_format( \%results );
+# Format the fields for the top, and print it all out
 my $col_width = field_format( \%results, [4,5] );
-
-# Print out the header for the detected plasmids section of the report
 print $out_fh "::: Plasmid Variants Detected in Sample :::\n\n";
-#printf $out_fh "%-9s %-9s %-13s %-17s %-${rwidth}s %-${awidth}s %-9s %-9s %-13s\n", qw( Gene Chr Position AmpID Ref Alt Freq Cov COSID );
-printf $out_fh "%-9s %-9s %-13s %-17s %-$${col_width[0]}s %-$${col_width[1]}s %-9s %-9s %-13s\n", qw( Gene Chr Position AmpID Ref Alt Freq Cov COSID );
+printf $out_fh "%-9s %-9s %-13s %-20s %-$${col_width[0]}s %-$${col_width[1]}s %-9s %-9s %-13s\n", qw( Gene Chr Position AmpID Ref Alt Freq Cov COSID );
 
-# Print out variant call info for found plasmids
-#for ( sort { $results{$a}[0] cmp $results{$b}[0] } keys %results ) {
 for ( sort { 
         ncmp($results{$a}[0], $results{$b}[0]) ||
         $results{$a}[2] <=> $results{$b}[2]
     } keys %results ) {
-	#printf $out_fh "%-9s %-9s %-13s %-17s %-${rwidth}s %-${awidth}s %-9.2f %-9.0f %-13s\n", @{$results{$_}};
-	printf $out_fh "%-9s %-9s %-13s %-17s %-$${col_width[0]}s %-$${col_width[1]}s %-9.2f %-9.0f %-13s\n", @{$results{$_}};
+	printf $out_fh "%-9s %-9s %-13s %-20s %-$${col_width[0]}s %-$${col_width[1]}s %-9.2f %-9.0f %-13s\n", @{$results{$_}};
 }
-# Print header for list of plasmids that aren't in the sample
-$col_width = field_format( \%plas_lookup, [5,6] );
-#print "col width: $$col_width[0]\n";
-#exit;
 
+# Format the fields for the bottom and print it all out 
+$col_width = field_format( \%plas_lookup, [5,6] );
 print $out_fh "\n::: Plasmids missing in sample :::\n\n";
-#print $out_fh "Gene\tChr\tStart\t\tEnd\t\tCOSID\t\tCDS\t\tSequence\tAmpID\n";
 printf $out_fh "%-9s %-9s %-13s %-13s %-13s %-$${col_width[0]}s %-$${col_width[1]}s %-20s\n", qw( Gene Chr Start End COSID CDS Sequence AmpID );
 
-# Print out list of plasmids that were missed
 for my $plasmid ( keys %plas_lookup ) {
 	if ( ! exists  $counter{$plasmid} ) {
         printf $out_fh "%-9s %-9s %-13s %-13s %-13s %-$${col_width[0]}s %-$${col_width[1]}s %-20s\n", @{$plas_lookup{$plasmid}} ;
-		#print $out_fh join( "\t", @{$plas_lookup{$plasmid}} ), "\n";
 	}
 }
+close( $out_fh );
 
 print "\ncpscChecker results written to file '$outfile'\n" if ( ! $preview );
-close( $out_fh );
 
 sub field_format {
 	# Try to get the largest field width to format the ouput nicely
@@ -178,13 +161,10 @@ sub field_format {
     my $cols = shift;
 
     my @format_widths;
-    #my $rwidth = 0;
-    #my $awidth = 0;
 
     for my $col (@$cols) {
         my $width = 0;
         for my $elem ( keys %$data ) {
-            #print $$data{$elem}->[$field], "\n";
             if ( length $$data{$elem}->[$col] > $width ) {
                 $width = ( length $$data{$elem}->[$col] ) + 4;
             }
@@ -192,18 +172,6 @@ sub field_format {
         push( @format_widths, $width );
     }
 
-    print "formatted fields: \n";
-    dd \@format_widths;
-	#for my $var ( keys %$data ) {
-		#if ( length $$data{$var}->[4] > $rwidth ) {
-			#$rwidth = (length $$data{$var}->[4]) + 4;
-		#}
-		#if ( length $$data{$var}->[5] > $awidth ) {
-			#$awidth = (length $$data{$var}->[5]) + 4;
-		#}
-	#}
-
-	#return ($rwidth, $awidth);
     return( \@format_widths );
 }
 
@@ -219,7 +187,6 @@ sub alleles_proc {
         exit 1;
     }
     while (<$cpsc_fh>) {
-        #next if ( /Chrom/ || /Absent/ || /No Call/ ); 
         my @line = split;
         my $variant_id = "$line[0]:$line[14]"; # chr:pos
         my $ref = $line[2];
@@ -236,7 +203,6 @@ sub alleles_proc {
 
 sub vcf_proc {
     # Process the results of running vcfExtractor -nN <vcf_file> instead of relying on alleles.xls
-
     my $data_file = shift;
 
     open ( my $cpsc_fh, "<", $$data_file ) || die "Query table '$$data_file' not found: '$!'\n";
