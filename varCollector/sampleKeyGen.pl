@@ -2,8 +2,6 @@
 # Program to create a sampleKey.txt file for Ion Torrent runs based on the information entered into the Plan
 # Template during setup.
 #
-# 11/7/2013 - updated for TSv4.0
-#
 # Created: 3/3/2013 - Dave Sims
 ###############################################################################################################
 use warnings;
@@ -14,7 +12,7 @@ use Data::Dumper;
 use Data::Dump;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.0.1";
+my $version = "v2.1.0_071614"
 my $description = <<"EOT";
 Program to read in the datasets_pipeline.json file setup during the planning for an Ion Torrent run, and 
 create a tab delimited sampleKey.txt file used in the rest of the variant reporting downstream. 
@@ -96,7 +94,7 @@ for my $read_bc ( keys %{$parsed_json->{'read_groups'}} ) {
 	next if ( $read_bc =~ /nomatch/ );
 	my $barcode = $$parsed_json{'read_groups'}->{$read_bc}->{'barcode_name'};
     my $sample = $$parsed_json{'read_groups'}->{$read_bc}->{'sample'};
-	$bc_hash{$barcode} = $sample;
+	$bc_hash{$barcode} = $sample unless ( $sample eq "none" );
 }
 
 # Make sure that there is data to be printed, otherwise have to build a sample key manually
