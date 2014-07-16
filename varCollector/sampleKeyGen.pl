@@ -12,7 +12,7 @@ use Data::Dumper;
 use Data::Dump;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.1.0_071614"
+my $version = "v2.1.0_071614";
 my $description = <<"EOT";
 Program to read in the datasets_pipeline.json file setup during the planning for an Ion Torrent run, and 
 create a tab delimited sampleKey.txt file used in the rest of the variant reporting downstream. 
