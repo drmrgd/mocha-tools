@@ -13,7 +13,7 @@
 
 #set -x
 
-VERSION="$(basename $0) - v2.1.0"
+VERSION="$(basename $0) - v2.2.0_072214"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -33,7 +33,7 @@ EOT
 TVCout="plugin_out/variantCaller_out"
 resultsDir="$(pwd)"
 colvarsDir="$resultsDir/collectedVariants"
-runName="$(echo "$resultsDir" | perl -pe 's/.*user_((?:[P|M]CC-\d+|MC[12]))-\d+.*/\1/')"
+runName="$(echo "$resultsDir" | perl -pe 's/.*user_((?:[P|M]CC-\d+|MC[12])-\d+).*/$1/')"
 cpscSample="IonXpress_001.txt"
 cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
