@@ -15,7 +15,7 @@ use Cwd;
 use File::Copy;
 
 ( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.1.4";
+my $version = "v2.2.0_072214";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -79,7 +79,14 @@ if ( defined $custom_key ) {
 
 # Check to make sure we have a valid sampleKey and load up a list
 open( my $skey_fh, "<", "$sampleKey" ) || die "No sample key found: $!\n";
-my %barcodes = map { split } <$skey_fh>;
+#my %barcodes = map { chomp; split(/\t/) } <$skey_fh>;
+my %barcodes;
+while (<$skey_fh>) {
+    chomp;
+    my ($bc, $samp) = split( /\t/ );
+    $samp =~ tr/ /_/;
+    $barcodes{$bc} = $samp;
+}
 close( $skey_fh );
 
 # Read list of IonXpress dirs in TVC results dir
@@ -117,7 +124,6 @@ foreach my $sample ( @sample_dirs ) {
 	if ( -f $tab_file ) {
 		copy( $tab_file, "$colVarsDir/$sample.txt" ); #make copy of unfiltered data
 		filter_vars( \$tab_file ); #filter and add to collectedVariants dir
-   
 	} 
 	else {
 		warn "The tabular variant call file: '$sample/alleles.xls' can not be found! $!\n";
@@ -137,7 +143,6 @@ summary_table();
 
 sub filter_vars {
 	# Get rid of the 'Absent' and 'No Call' data to make more informative output.  Will keep raw data for troubleshooting later  
-	
 	my $varfile = shift;
 
 	my @filtered_data;
