@@ -10,10 +10,11 @@ use warnings;
 use strict;
 use File::Basename;
 use Data::Dump;
+use Term::ANSIColor;
 
 #( my $scriptname = $0 ) =~ s/^(.*\/)+//;
 my $scriptname = basename($0);
-my $version = "v2.0.0_062714";
+my $version = "v2.1.0_073014";
 my $description = <<"EOT";
 Program to generate new lookup tables used by the cpscChecker utility based on a master file of all 
 variants and a file containing a list of COSMIC IDs to pull from that table.  
@@ -94,14 +95,23 @@ while (<$lookup_fh>) {
 	}
 }
 
-my @err;
+my (@err, @found_list);
 for my $cosid ( @cosids ) {
     if ( exists $plas_data{$cosid} ) {
-        print $out_fh $plas_data{$cosid};
+        #print $out_fh $plas_data{$cosid};
+        push( @found_list, $plas_data{$cosid} ); # Create array that I can sort later
     } else {
        push( @err, "WARNING: '$cosid' does not exist in the master lookup table!\n" );
     }
 }
 
+# Add sort routine to make output cleaner
+my @sorted_found = map  { $_->[0] }
+                   sort { $a->[1] cmp $b->[1] } # Sort by gene name
+                   sort { $a->[3] <=> $b->[3] } # Then sort by position
+                   map  { [$_, split(/\t/, $_)] } @found_list;
+
 # Output errors at the bottom so we can see them with long output
+print {$out_fh} $_ for @sorted_found;
+print color('bold red');
 print "\n", join( "\n", @err ) if @err;
