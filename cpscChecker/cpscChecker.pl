@@ -6,12 +6,15 @@
 #
 # TODO:
 #   - Add the ability to load up a custom lookup table from anywhere.
-#
+#   - Call vcfExtractor rather that running it and then piping the data.
+#   - Can I find a more elegent way of adding lookup tables; seems too clunky.
+#   
 # Created 2/24/2013 - Dave Sims
 ###################################################################################################		
-
 use warnings;
 use strict;
+use autodie;
+
 use Getopt::Long qw( :config bundling auto_abbrev no_ignore_case );
 use Data::Dump;
 use Cwd 'abs_path';
@@ -20,7 +23,7 @@ use File::Basename;
 use Term::ANSIColor;
 
 my $scriptname = basename($0);
-my $version = "v3.0.0_071114";
+my $version = "v3.0.1_032115";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query
 a TVC 'alleles.xls' file to check to see if the plasmid was seen in the sample, and print
@@ -29,11 +32,10 @@ were not found.
 EOT
 
 my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <3,4,4.1,4ocp,5,mc>  <alleles.xls>
+USAGE: $scriptname [options] -l <3,4,4.1,4ocp,5,mc,sc>  <alleles.xls>
 
     -l, --lookup           CPSC lookup table version to use. 
     -V, --VCF              EXPERIMENTAL: run on vcfExtractor output instead of 'alleles.xls'
-    -c, --custom_lookup    Use a custom lookup table rather than hardcoded, prebuilt ones
     -o, --output <file>    Output file name (default is 'cpscChecker_output.txt')
     -p, --preview          Do not write output to a file.  Print to STDOUT just for testing.
     -h, --help             Display Help information
@@ -108,8 +110,9 @@ my $lookup_path = "$scriptdir/lookup_tables";
 ( $ltable eq '4ocp' )  ? $lookup = "${lookup_path}/cpsc_v4ocp_lookupTable.txt"  :
 ( $ltable eq '5' )     ? $lookup = "${lookup_path}/cpsc_v5_lookupTable.txt"     :
 ( $ltable eq 'mc' )    ? $lookup = "${lookup_path}/cpsc_mc_lookupTable.txt"     :
-die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','4.1', '4ocp', '5', or 'mc'.\n";
-print colored("The selected lookup table ['$ltable'] is: '$lookup'\n", 'green on_black');
+( $ltable eq 'sc' )    ? $lookup = "${lookup_path}/seracare_misc_v1.0_022515.txt" :
+die "$err '$ltable' is not a valid CPSC lookup table.  Valid options are: '3','4','4.1', '4ocp', '5', 'mc', or 'sc'.\n";
+print colored("The selected lookup table ['$ltable'] is: '$lookup'", 'green on_black'), "\n";
 
 # Load up hash lookup table
 open( my $lookup_fh, "<", $lookup ) || die "Lookup file not found: '$!'";
