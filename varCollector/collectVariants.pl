@@ -18,7 +18,7 @@ use Getopt::Long qw( :config auto_abbrev bundling no_ignore_case );
 use Data::Dump;
 
 my $scriptname = basename($0);
-my $version = "v3.0.0_042215";
+my $version = "v3.1.0_042215";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -37,8 +37,10 @@ my $ver_info = 0;
 my $help = 0;
 my $custom_key;
 my $TVCout = "/variantCaller_out";
+my $outdir = '';
 
-GetOptions( "tvc_results|t=s"    => \$TVCout,
+GetOptions( "outdir|o=s"         => \$outdir, 
+            "tvc_results|t=s"    => \$TVCout,
             "samplekey|s=s"      => \$custom_key,
             "version|v"          => \$ver_info,
             "help|h"             => \$help )
@@ -69,15 +71,19 @@ if ( ! -d $tvc_path ) {
 my ($runid) = $resultsDir =~ /([PM]C[123C]-\d+)/;
 
 # Make collectedVariants directory
-my $colVarsDir = "$resultsDir/collectedVariants/";
-mkdir( $colVarsDir ) unless ( -e $colVarsDir );
+# Don't need this if it's called from a wrapper script.
+if ( ! $outdir ) {
+    $outdir = "$resultsDir/collectedVariants";
+    my ($plugin_number) = $TVCout =~ /\.(\d+)$/;
+    $outdir .= ".$plugin_number" if $plugin_number;
+}
 
 my $sampleKey;
 # Allow for custom sample key in order to run standalone
 if ( defined $custom_key ) {
 	$sampleKey = $custom_key;
 } else {
-	$sampleKey = "$colVarsDir/sampleKey.txt";
+	$sampleKey = "$outdir/sampleKey.txt";
 }
 
 # Check to make sure we have a valid sampleKey and load up a list
@@ -125,7 +131,7 @@ foreach my $sample ( @sample_dirs ) {
 
 	# Grab alleles.xls files
 	if ( -f $tab_file ) {
-		copy( $tab_file, "$colVarsDir/$sample.txt" ); #make copy of unfiltered data
+		copy( $tab_file, "$outdir/$sample.txt" ); #make copy of unfiltered data
 		filter_vars( \$tab_file ); #filter and add to collectedVariants dir
 	} 
 	else {
@@ -134,7 +140,7 @@ foreach my $sample ( @sample_dirs ) {
 
 	# Grab vcf files
 	if ( -f $vcf_file ) {
-		copy( $vcf_file, "$colVarsDir/$barcodes{$sample}_${runid}.vcf" ); 
+		copy( $vcf_file, "$outdir/$barcodes{$sample}_${runid}.vcf" ); 
 		filter_vars( \$vcf_file );
 	} else {
 		warn "No TSVC_variants.vcf file found.  Skipping...\n";
@@ -159,7 +165,7 @@ sub filter_vars {
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
 	if ( $$varfile =~ /\.vcf$/ ) {
-        my $outfile = "$colVarsDir/${sample_name}_${runid}_filtered.vcf";
+        my $outfile = "$outdir/${sample_name}_${runid}_filtered.vcf";
         return;
 	}
     elsif ( $$varfile =~ /\.xls$/ ) {
@@ -167,7 +173,7 @@ sub filter_vars {
 		open( my $xls_fh, "<", $$varfile ) || die "Can't open the variants.xls file for reading";
 		@filtered_data =  grep { ! /(Absent|No Call)/ } <$xls_fh>; # Get only variant containing lines
 
-        my $outfile = "$colVarsDir/${sample_name}_filtered.txt";
+        my $outfile = "$outdir/${sample_name}_filtered.txt";
 
         open( my $out_fh, ">", $outfile ) || die "Can't create file '$outfile' for writing: $!";
         print $out_fh $tab_header;
@@ -194,16 +200,17 @@ sub summary_table {
     my @tab_fields = qw{ Chrom Position Gene AmpID Type Ref Alt Freq Qual Cov RefCov VarCov HP Hotspot };
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
-	my $outputFile = "$colVarsDir" .  $runid . "_allVariants.tsv";
+	#my $outputFile = "$outdir" .  $runid . "_allVariants.tsv";
+	my $outputFile = "${outdir}/${runid}_allVariants.tsv";
 	open ( my $summary_fh, ">", $outputFile ) || die "Output file: '$outputFile' can not be opened for writing! $!";
 
-	opendir( my $vars_dir, "$colVarsDir" ) || die "Can't read collectedVariants directory! $!";
+	opendir( my $vars_dir, "$outdir" ) || die "Can't read collectedVariants directory! $!";
     my @var_files = map { "$barcodes{$_}_filtered.txt" } map { $_ =~ /(IonXpress_\d+)\.txt/ } readdir($vars_dir);
 
 	# Read through all the variant call files, concatenate them, and add the sample name to the row.
 	foreach my $varFile ( sort( @var_files ) ) {
         my ($sample_name) = $varFile =~ /^(.*)_filtered.*/;
-		open ( my $varfile, "<", "$colVarsDir/$varFile" ) || die "Can't open this file for some reason: '$varFile'\n";
+		open ( my $varfile, "<", "$outdir/$varFile" ) || die "Can't open this file for some reason: '$varFile'\n";
 		print $summary_fh "::: Variant Calls for $sample_name :::\n\n";
         print $summary_fh "$tab_header";
 

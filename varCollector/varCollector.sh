@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.0.0_042215"
+VERSION="$(basename $0) - v3.1.0_042215"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -116,17 +116,18 @@ if [ -d "$colvarsDir" ]; then
     printf "WARNING: 'collectedVariants' directory found.  Continuing will overwrite results.  Continue [y/n]? "
     read -a overwrite
     case "$overwrite" in
-        y|Y) echo "Overwriting old results." && rm -r "$colvarsDir";;
+        y|Y) echo "Overwriting old results." && rm -r $colvarsDir && mkdir $colvarsDir;;
         n|N|"") echo "Exiting..." && exit 1;;
         *) echo "Not a valid choice!" && exit 1;;
     esac
+else
+    echo "Making a collectedVariants dir..."
+    mkdir $colvarsDir;
 fi
 
-# Make collectedVariants directory and run sampleKeyGen.pl to generate a sample key for the run
-echo "Making a collectedVariants dir..."
-mkdir $colvarsDir;
 # Use custom key instead of generating one and copy to $colvarsDir
 if [[ $customKey ]]; then
+    echo "Using custom sampleKey '$customKey'"
 	cp $customKey "$colvarsDir/sampleKey.txt"
 else
     echo "Generating sampleKey.txt..."
@@ -145,11 +146,6 @@ if [[ $? -ne 0 ]]; then
 	exit 1
 fi
 
-if [ ! -d "$colvarsDir" ]; then 
-	echo "[ ERROR ] No 'collectedVariants' directory found. Something bad happened!"
-	exit 1
-fi
-
 if [[ $is_RandD_server -eq 1 ]]; then
 	echo "[ NOTE ]: Running in an R&D environment.  No automatic cpscChecker run.  Please run the cpscChecker tool manually."
 else
@@ -163,12 +159,12 @@ else
 		
 	#  If conditions are OK, let's run the script.
 	cd $colvarsDir
-	printf "Running cpscChecker for '$runName' on sample '$cpscSample'...\n"
+	printf "Running cpscChecker for '$run_num' on sample '$cpscSample'...\n"
 	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup $cpscSample"
 fi
 
 # Prepare a zip archive of results for experiment folder 
 cd $colvarsDir
-zip "$runName"_variants.zip * > /dev/null 2>&1
+zip "$run_num"_variants.zip * > /dev/null 2>&1
 
 echo -e "\nScript complete. Results written to the 'collectedVariants' directory\n" 
