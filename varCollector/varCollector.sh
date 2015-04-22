@@ -85,7 +85,8 @@ shift $((OPTIND - 1))
 
 # For TSS v4.4+ old plugin results kept and we need to collect the latest data.
 declare -A tvc_results
-for dir in "${resultsDir}/plugin_out/*"; do
+for dir in ${resultsDir}/plugin_out/*; do
+    echo $dir
     dir=$(basename $dir)
     if [[ $dir =~ variantCaller_out.[0-9]+ ]]; then
         tvc_run=(${dir//./ })
