@@ -10,10 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-
-#set -x
-
-VERSION="$(basename $0) - v2.2.0_072214"
+VERSION="$(basename $0) - v3.0.0_042215"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -30,10 +27,16 @@ Caller (TVC) plugin has been run.
 EOT
 )"
 
-TVCout="plugin_out/variantCaller_out"
-resultsDir="$(pwd)"
-colvarsDir="$resultsDir/collectedVariants"
-runName="$(echo "$resultsDir" | perl -pe 's/.*user_((?:[P|M]CC-\d+|MC[12])-\d+).*/$1/')"
+resultsDir=$(pwd)
+
+# If this is a test reanalysis with a non-conventional name, grep's return code will cause issues.
+if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
+    echo "No conventional run number detected in experiment name. Using a random number."
+    run_num="test-$RANDOM"
+else
+    run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
+fi
+
 cpscSample="IonXpress_001.txt"
 cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
@@ -80,22 +83,43 @@ do
 done
 shift $((OPTIND - 1))
 
+# For TSS v4.4+ old plugin results kept and we need to collect the latest data.
+declare -A tvc_results
+for dir in "${resultsDir}/plugin_out/*"; do
+    dir=$(basename $dir)
+    if [[ $dir =~ variantCaller_out.[0-9]+ ]]; then
+        tvc_run=(${dir//./ })
+        tvc_results[${tvc_run[1]}]=$dir
+    fi
+done
 
-# Check to make sure TVC has been run and you are in the results dir
-if [ ! -d "$TVCout" ]; then
-	echo "[ ERROR ] Either you are not running this script from a run results folder, or TVC has not been run on this sample."
-	exit 1
+if [[ ${#tvc_results[@]} -eq 0 ]]; then
+    echo "[ ERROR ]: TVC has not been run on this sample.  Please run TVC before running this script"
+    exit 1
+else
+    largest=0
+    for key in ${!tvc_results[@]}; do 
+        if [[ $key > $largest ]]; then
+            largest=$key
+        fi
+    done
+    
+    tvc_output=${tvc_results[$largest]}
+    echo "TVC output directory '$tvc_output' found. Continuing..."
+    echo
 fi
+
+colvarsDir="$resultsDir/collectedVariants.$largest"
 
 # Check to see if varCollector has already been run
 if [ -d "$colvarsDir" ]; then
-	printf "WARNING: 'collectedVariants' directory found.  Continuing will overwrite results.  Continue [y/n]? "
-	read -a overwrite
-	case "$overwrite" in
-		y|Y) echo "Overwriting old results." && rm -r "$colvarsDir";;
-		n|N|"") echo "Exiting..." && exit 1;;
-		*) echo "Not a valid choice!" && exit 1;;
-	esac
+    printf "WARNING: 'collectedVariants' directory found.  Continuing will overwrite results.  Continue [y/n]? "
+    read -a overwrite
+    case "$overwrite" in
+        y|Y) echo "Overwriting old results." && rm -r "$colvarsDir";;
+        n|N|"") echo "Exiting..." && exit 1;;
+        *) echo "Not a valid choice!" && exit 1;;
+    esac
 fi
 
 # Make collectedVariants directory and run sampleKeyGen.pl to generate a sample key for the run
@@ -115,7 +139,7 @@ fi
 
 # Run collectVariants.pl
 echo "Running collectVariants.pl on TVC results..." 
-eval "perl $SCRIPTPATH/collectVariants.pl" 
+eval "perl $SCRIPTPATH/collectVariants.pl -t $tvc_output"
 if [[ $? -ne 0 ]]; then
 	echo "[ ERROR ] The collectVariants.pl script had problems and failed to run!" 
 	exit 1
