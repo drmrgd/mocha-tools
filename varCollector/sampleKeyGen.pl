@@ -102,7 +102,7 @@ if ( ( grep { $bc_hash{$_} =~ /none/i } keys %bc_hash ) == scalar( keys %bc_hash
 
 # Print out the final sampleKey data
 foreach my $bc ( sort keys %bc_hash ) {
-	print {$out_fh} "$bc\t$bc_hash{$bc}\n" unless ( $bc_hash{$bc} eq 'None' );
+	print {$out_fh} "$bc\t$bc_hash{$bc}\n" unless ( $bc_hash{$bc} =~ /none/i );
 }
 close $out_fh;
 
