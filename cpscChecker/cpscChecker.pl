@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.3.0_062415";
+my $version = "v3.4.0_062415";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -232,12 +232,15 @@ sub print_results {
         printf $format, @{$$found_plasmids{$var}}[0,10,1,2,5,6,7,8,9];
     }
 
-    print "\n:::  Plasmids Missing in Sample  :::\n";
-    $col_widths = field_width( $lookup, [4,5] );
-    $format = "%-8s%-9s%-14s%-15s%-$${col_widths[0]}s%-$${col_widths[1]}s\n";
-    printf $format, qw(Gene Chr Position VARID CDS Sequence);
-    for my $plas (keys %$lookup) {
-        printf $format, @{$$lookup{$plas}} if (! exists $$found_plasmids{$plas});
+    # Print out a list of thos missing only if we have some missing.
+    if ( (scalar keys %$lookup) > (scalar keys %$found_plasmids) ) {
+        print "\n:::  Plasmids Missing in Sample  :::\n";
+        $col_widths = field_width( $lookup, [4,5] );
+        $format = "%-8s%-9s%-14s%-15s%-$${col_widths[0]}s%-$${col_widths[1]}s\n";
+        printf $format, qw(Gene Chr Position VARID CDS Sequence);
+        for my $plas (keys %$lookup) {
+            printf $format, @{$$lookup{$plas}} if (! exists $$found_plasmids{$plas});
+        }
     }
 
     return;
