@@ -16,14 +16,14 @@ use Data::Dump;
 use Sort::Versions;
 
 # Remove when in prod.
-#print "\n";
-#print colored("*" x 50, 'bold yellow on_black');
-#print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER\n", 'bold yellow on_black');
-#print colored("*" x 50, 'bold yellow on_black');
-#print "\n\n";
+print "\n";
+print colored("*" x 50, 'bold yellow on_black');
+print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER\n", 'bold yellow on_black');
+print colored("*" x 50, 'bold yellow on_black');
+print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.4.0_062415";
+my $version = "v3.6.0_062415-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -31,9 +31,11 @@ plasmid was not found, print out a list of missing plasmids.
 EOT
 
 my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <lookup_file> <vcf_file>
+USAGE: $scriptname [options] -l <lookup_file> -V <vcf_file> | -T <tabular file>
     -l, --lookup           CPSC lookup file to use.  Use '?' to see list of available files.
     -c, --custom_lookup    Use a custom lookup file rather than one of the built-in ones.
+    -V, --VCF              Input is from a TVC VCF File
+    -T, --Tab              Input is from a TVC tab delimited file (i.e. alleles.xls).
     -o, --output           Send output to custom file.  Default is STDOUT.
     -v, --version          Version information
     -h, --help             Print this help information
@@ -44,9 +46,13 @@ my $ver_info;
 my $outfile;
 my $lookup;
 my $custom_lookup;
+my $vcf;
+my $tab;
 
 GetOptions( "lookup|l=s"         => \$lookup,
             "custom_lookup|c=s"  => \$custom_lookup,
+            "VCF|V=s"            => \$vcf,
+            "Tab|T=s"            => \$tab,
             "output|o=s"         => \$outfile,
             "version|v"          => \$ver_info,
             "help|h"             => \$help )
@@ -66,11 +72,17 @@ help if $help;
 version if $ver_info;
 
 # Make sure enough args passed to script
-if ( scalar( @ARGV ) < 1 ) {
+unless ($tab || $vcf) {
     print "ERROR: Not enough arguments passed to script!\n\n";
     print "$usage\n";
     exit 1;
 }
+
+#if ( scalar( @ARGV ) < 1 ) {
+    #print "ERROR: Not enough arguments passed to script!\n\n";
+    #print "$usage\n";
+    #exit 1;
+#}
 
 # Set up some formatted and colored output
 my $err = colored( 'ERROR:', 'bold red on_black');
@@ -86,9 +98,6 @@ if ( $outfile ) {
 }
 
 #########------------------------------ END ARG Parsing ---------------------------------#########
-my $vcf = shift;
-print "Checking $vcf for CPSC data...\n";
-
 my $cpsc_lookup;
 if ($lookup) {
     $cpsc_lookup = validate_lookup(\$lookup);
@@ -108,32 +117,58 @@ elsif ($custom_lookup) {
 # Generate lookup dataset
 my %cpsc_lookup_data = load_lookup(\$cpsc_lookup);
 
-#dd \%cpsc_lookup_data;
-#exit;
-
-# read VCF file and store.
-my %vcf_data;
-if (! $vcf) {
-    print "$err No VCF file loaded.\n";
-} 
-elsif ( ! -e $vcf ) {
-    die "$err Can't read VCF '$vcf': $!";
+# read variant file and store data
+my %plas_results;
+my %raw_data;
+if ($vcf) {
+    if ( ! $vcf && ! -e $vcf ) {
+        die "$err Can't read VCF file '$vcf': $!";
+    } else {
+        %raw_data = read_vcf(\$vcf);
+    }
 } else {
-    %vcf_data = read_vcf(\$vcf);
+    my %tab_data;
+    if ( ! $tab && ! -e $tab ) {
+        die "$err Can't read alleles tab file: '$tab': $!";
+    } else {
+        %raw_data = read_tab(\$tab);
+    }
 }
 
-#dd \%vcf_data;
-#exit;
+# Check VCF dataset against lookup hash for final results.
+%plas_results = proc_plas_data(\%cpsc_lookup_data,\%raw_data);
 
-# Check VCF dataset against lookup hash for results.
-my %plas_results = proc_vcf_data(\%cpsc_lookup_data,\%vcf_data);
+#dd \%plas_results;
+#exit;
 
 # Print out the results.
 print_results(\%plas_results, \%cpsc_lookup_data);
 
+sub read_tab {
+    my $input_file = shift;
+    my %tab_data;
+
+    print "Checking tab delimited variants file '$$input_file' for CPSC data...\n";
+
+    open( my $tab_fh, "<", $$input_file );
+    while (<$tab_fh>) {
+        chomp;
+        next unless /^chr/;
+        my @fields = split(/\t/);
+        my $var_coord = join(':', @fields[1,2]);
+        my $ref_cov = $fields[18]-$fields[24];
+        $tab_data{join(':', @fields[0..3])} = [@fields[0..6],$fields[18],$ref_cov,$fields[24],$fields[11]];
+    }
+    close $tab_fh;
+
+    return %tab_data;
+}
+
 sub read_vcf {
     my $vcf_file = shift;
     my %vcf_data;
+
+    print "Checking VCF file '$$vcf_file' for CPSC data...\n";
 
     chomp(my $path = qx( which vcfExtractor.pl ));
     my $vcf_extractor_cmd = qq{ $path -Nn $$vcf_file };
@@ -193,13 +228,10 @@ sub load_lookup {
     return %cpsc_data;
 }
 
-sub proc_vcf_data {
+sub proc_plas_data {
     my ($cpsc_lookup,$vcf_data) = @_;
     my %results;
     my %missing;
-
-    #dd \$cpsc_lookup;
-    #exit;
 
     for my $var (keys %$vcf_data) {
         next unless (exists $$cpsc_lookup{$var});
