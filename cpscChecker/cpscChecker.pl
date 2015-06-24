@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.2.0_062315";
+my $version = "v3.3.0_062415";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -108,8 +108,8 @@ elsif ($custom_lookup) {
 # Generate lookup dataset
 my %cpsc_lookup_data = load_lookup(\$cpsc_lookup);
 
-dd \%cpsc_lookup_data;
-exit;
+#dd \%cpsc_lookup_data;
+#exit;
 
 # read VCF file and store.
 my %vcf_data;
@@ -121,6 +121,9 @@ elsif ( ! -e $vcf ) {
 } else {
     %vcf_data = read_vcf(\$vcf);
 }
+
+#dd \%vcf_data;
+#exit;
 
 # Check VCF dataset against lookup hash for results.
 my %plas_results = proc_vcf_data(\%cpsc_lookup_data,\%vcf_data);
@@ -138,7 +141,8 @@ sub read_vcf {
     while (<$parsed_vcf>) {
         next unless /^chr/;
         my @fields = split;
-        $vcf_data{$fields[0]} = [@fields];
+        #my $varid = join( ':', @fields[0..2] );
+        $vcf_data{join(':', @fields[0..2])} = [@fields];
     } 
     return %vcf_data;
 }
@@ -183,7 +187,7 @@ sub load_lookup {
     while (<$lookup_fh>) {
         next if /^\s*$/;
         my @fields = split;
-        $cpsc_data{join(':', @fields[1,2])} = [@fields];
+        $cpsc_data{join(':', @fields[1,2,5,6])} = [@fields];
     }
     close $lookup_fh;
     return %cpsc_data;
@@ -193,6 +197,9 @@ sub proc_vcf_data {
     my ($cpsc_lookup,$vcf_data) = @_;
     my %results;
     my %missing;
+
+    #dd \$cpsc_lookup;
+    #exit;
 
     for my $var (keys %$vcf_data) {
         next unless (exists $$cpsc_lookup{$var});
@@ -204,6 +211,9 @@ sub proc_vcf_data {
             $results{$var}->[9] = $$cpsc_lookup{$var}->[3];
         }
     }
+    #dd \%results;
+    #exit;
+
     return %results;
 }
 
