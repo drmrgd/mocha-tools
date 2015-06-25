@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.6.0_062415-dev";
+my $version = "v3.7.0_062515-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -155,12 +155,11 @@ sub read_tab {
         chomp;
         next unless /^chr/;
         my @fields = split(/\t/);
-        my $var_coord = join(':', @fields[1,2]);
+        my $var_coord = join(':', @fields[0,1]);
         my $ref_cov = $fields[18]-$fields[24];
-        $tab_data{join(':', @fields[0..3])} = [@fields[0..6],$fields[18],$ref_cov,$fields[24],$fields[11]];
+        $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2..6],$fields[18],$ref_cov,$fields[24],$fields[11]];
     }
     close $tab_fh;
-
     return %tab_data;
 }
 
