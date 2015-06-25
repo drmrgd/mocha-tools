@@ -8,7 +8,7 @@ use warnings;
 use strict;
 use autodie;
 
-use Getopt::Long qw( :config bundling auto_abbrev no_ignore_case );
+use Getopt::Long qw(:config bundling auto_abbrev no_ignore_case);
 use File::Basename;
 use Cwd qw(abs_path getcwd);
 use Term::ANSIColor;
@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.7.0_062515-dev";
+my $version = "v3.8.0_062515-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -78,12 +78,6 @@ unless ($tab || $vcf) {
     exit 1;
 }
 
-#if ( scalar( @ARGV ) < 1 ) {
-    #print "ERROR: Not enough arguments passed to script!\n\n";
-    #print "$usage\n";
-    #exit 1;
-#}
-
 # Set up some formatted and colored output
 my $err = colored( 'ERROR:', 'bold red on_black');
 my $warn = colored( 'WARNING:', 'bold yellow on_black');
@@ -118,7 +112,6 @@ elsif ($custom_lookup) {
 my %cpsc_lookup_data = load_lookup(\$cpsc_lookup);
 
 # read variant file and store data
-my %plas_results;
 my %raw_data;
 if ($vcf) {
     if ( ! $vcf && ! -e $vcf ) {
@@ -136,10 +129,7 @@ if ($vcf) {
 }
 
 # Check VCF dataset against lookup hash for final results.
-%plas_results = proc_plas_data(\%cpsc_lookup_data,\%raw_data);
-
-#dd \%plas_results;
-#exit;
+my %plas_results = proc_plas_data(\%cpsc_lookup_data,\%raw_data);
 
 # Print out the results.
 print_results(\%plas_results, \%cpsc_lookup_data);
@@ -238,13 +228,10 @@ sub proc_plas_data {
 
         # Do a little post processing to get the gene name and fix variant ID
         push( @{$results{$var}}, $$cpsc_lookup{$var}->[0] );
-        if ($results{$var}->[9] eq '.') {
+        if ($results{$var}->[9] =~ /^[-.]/) {
             $results{$var}->[9] = $$cpsc_lookup{$var}->[3];
         }
     }
-    #dd \%results;
-    #exit;
-
     return %results;
 }
 
