@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.9.3_062915-dev";
+my $version = "v3.9.5_062915-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -94,6 +94,8 @@ if ( $outfile ) {
 }
 
 #########------------------------------ END ARG Parsing ---------------------------------#########
+
+# Generate lookup dataset
 my $cpsc_lookup;
 if ($lookup) {
     $cpsc_lookup = validate_lookup(\$lookup);
@@ -109,25 +111,15 @@ elsif ($custom_lookup) {
     print "$err You must load a lookup file with either the '--lookup' or '--custom_lookup' options\n";
     exit 1;
 }
-
-# Generate lookup dataset
 my %cpsc_lookup_data = load_lookup(\$cpsc_lookup);
 
 # read variant file and store data
 my %raw_data;
 if ($vcf) {
-    if ( ! $vcf && ! -e $vcf ) {
-        die "$err Can't read VCF file '$vcf': $!";
-    } else {
-        %raw_data = read_vcf(\$vcf);
-    }
+    (-e $vcf) ? (%raw_data = read_vcf(\$vcf)) : die "$err Can't read VCF file '$vcf': $!";
 } else {
     my %tab_data;
-    if ( ! $tab && ! -e $tab ) {
-        die "$err Can't read alleles tab file: '$tab': $!";
-    } else {
-        %raw_data = read_tab(\$tab);
-    }
+    (-e $tab) ? (%raw_data = read_tab(\$tab)) : die "$err Can't read alleles tab file '$tab': $!";
 }
 
 # Check VCF dataset against lookup hash for final results.
@@ -163,7 +155,7 @@ sub read_vcf {
 
     chomp(my $path = qx( which vcfExtractor.pl ));
     my $vcf_extractor_cmd = qq{ $path -Nn $$vcf_file };
-    open( my $parsed_vcf, "-|", $vcf_extractor_cmd ); 
+    open( my $parsed_vcf, "-|", $vcf_extractor_cmd ) || die "ERROR parsing VCF file: $!"; 
     while (<$parsed_vcf>) {
         next unless /^chr/;
         my @fields = split;
