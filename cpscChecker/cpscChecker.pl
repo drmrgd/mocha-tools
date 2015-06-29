@@ -250,7 +250,7 @@ sub print_results {
         $col_widths = field_width( $lookup, [4,5] );
         $format = "%-8s%-9s%-14s%-15s%-$${col_widths[0]}s%-$${col_widths[1]}s\n";
         printf $format, qw(Gene Chr Position VARID CDS Sequence);
-        for my $plas (keys %$lookup) {
+        for my $plas ( sort{ versioncmp( $a, $b ) } keys %$lookup) {
             printf $format, @{$$lookup{$plas}}[0..4,7] if (! exists $$found_plasmids{$plas});
         }
     }
