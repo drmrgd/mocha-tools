@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.9.5_062915-dev";
+my $version = "v3.9.6_062915-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -72,7 +72,7 @@ help if $help;
 version if $ver_info;
 
 # Make sure enough args passed to script
-if ( $lookup ne '?' ) {
+if ( defined $lookup && $lookup ne '?' ) {
     unless ($tab || $vcf) {
         print "ERROR: Not enough arguments passed to script!\n\n";
         print "$usage\n";
@@ -96,9 +96,10 @@ if ( $outfile ) {
 #########------------------------------ END ARG Parsing ---------------------------------#########
 
 # Generate lookup dataset
-my $cpsc_lookup;
+my %cpsc_lookup_data;
 if ($lookup) {
-    $cpsc_lookup = validate_lookup(\$lookup);
+    my $cpsc_lookup = validate_lookup(\$lookup);
+    %cpsc_lookup_data = load_lookup(\$cpsc_lookup);
 }
 elsif ($custom_lookup) {
     if ( ! -e $custom_lookup ) {
@@ -106,12 +107,11 @@ elsif ($custom_lookup) {
         validate_lookup(\'?');
         exit 1;
     }
-    $cpsc_lookup = validate_lookup(\$custom_lookup);
+    %cpsc_lookup_data = load_lookup(\$custom_lookup);
 } else {
     print "$err You must load a lookup file with either the '--lookup' or '--custom_lookup' options\n";
     exit 1;
 }
-my %cpsc_lookup_data = load_lookup(\$cpsc_lookup);
 
 # read variant file and store data
 my %raw_data;
