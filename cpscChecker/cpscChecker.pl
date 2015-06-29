@@ -72,10 +72,12 @@ help if $help;
 version if $ver_info;
 
 # Make sure enough args passed to script
-unless ($tab || $vcf) {
-    print "ERROR: Not enough arguments passed to script!\n\n";
-    print "$usage\n";
-    exit 1;
+if ( $lookup ne '?' ) {
+    unless ($tab || $vcf) {
+        print "ERROR: Not enough arguments passed to script!\n\n";
+        print "$usage\n";
+        exit 1;
+    }
 }
 
 # Set up some formatted and colored output
