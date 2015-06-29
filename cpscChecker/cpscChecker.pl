@@ -10,7 +10,7 @@ use autodie;
 
 use Getopt::Long qw(:config bundling auto_abbrev no_ignore_case);
 use File::Basename;
-use Cwd qw(abs_path getcwd);
+use Cwd qw(abs_path);
 use Term::ANSIColor;
 use Data::Dump;
 use Sort::Versions;
@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.8.0_062515-dev";
+my $version = "v3.9.3_062915-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -167,7 +167,6 @@ sub read_vcf {
     while (<$parsed_vcf>) {
         next unless /^chr/;
         my @fields = split;
-        #my $varid = join( ':', @fields[0..2] );
         $vcf_data{join(':', @fields[0..2])} = [@fields];
     } 
     return %vcf_data;
@@ -183,6 +182,7 @@ sub validate_lookup {
         '4ocp' => 'cpsc_v4ocp_lookupTable.txt',
         'mc'   => 'cpsc_mc_lookupTable.txt',
         '5'    => 'cpsc_v5_lookupTable.txt',
+        '6'    => 'cpsc_v6_lookupTable.txt',
         'sc1'  => 'seracare_misc_v1.0_022515.txt',
         'sc2'  => 'seracare_v2.0_060115.txt',
     );
@@ -259,7 +259,7 @@ sub print_results {
         $format = "%-8s%-9s%-14s%-15s%-$${col_widths[0]}s%-$${col_widths[1]}s\n";
         printf $format, qw(Gene Chr Position VARID CDS Sequence);
         for my $plas (keys %$lookup) {
-            printf $format, @{$$lookup{$plas}} if (! exists $$found_plasmids{$plas});
+            printf $format, @{$$lookup{$plas}}[0..4,7] if (! exists $$found_plasmids{$plas});
         }
     }
 
