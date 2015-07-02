@@ -107,8 +107,8 @@ my @sorted_found = map  { $_->[0] }
 print {$out_fh} $_ for @sorted_found;
 #print color('bold red');
 #print "\n", join( "\n", @err ) if @err;
-print "\n";
 if (@err) {
+    print "\n";
     print colored($_, 'bold red on_black') for @err;
 }
 
