@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script to coordinate the collection of variants from a TVC analysis, naming and concatenation
 # of the .txt files containing the variants, and running of cpscChecker.pl to analyze the 
 # CPSC sample performance.
@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.1.0_042215"
+VERSION="$(basename $0) - v3.1.1_090215"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
