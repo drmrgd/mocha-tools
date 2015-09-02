@@ -10,10 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-
-#set -x
-
-VERSION="$(basename $0) - v2.1.0"
+VERSION="$(basename $0) - v2.3.0"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -30,16 +27,14 @@ Caller (TVC) plugin has been run.
 EOT
 )"
 
-TVCout="plugin_out/variantCaller_out"
 resultsDir="$(pwd)"
 colvarsDir="$resultsDir/collectedVariants"
-runName="$(echo "$resultsDir" | perl -pe 's/.*user_((?:[P|M]CC-\d+|MC[12]))-\d+.*/\1/')"
-cpscSample="IonXpress_001.txt"
-cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
-is_RandD_server=0 #Change to 0 for production server with locked pipeline.
+#runName="$(echo "$resultsDir" | perl -pe 's/.*user_((?:[P|M]CC-\d+|MC[12]))-\d+.*/\1/')"
+runName="$(echo "$resultsDir" | egrep -o '[PM]C[C123]-[0-9]+')"
 
-echo "run name: $runName";
-exit;
+cpscSample="IonXpress_001.txt"
+cpsc_lookup=mc #Default lookup file for cpscChecker
+is_RandD_server=0 #Change to 0 for production server with locked pipeline.
 
 # Get absolute path of scriptname in order to be more flexible later. 
 SCRIPT=$(readlink -f $0)
@@ -83,9 +78,43 @@ do
 done
 shift $((OPTIND - 1))
 
+# since TSSv4.4 is now allowing to have multiple plugins run and the results residing for them in a numbered dir, 
+# grab the dir names. store in a hash, and figure out th elarges key which will be the latest TVC results.
+echo "Checking for TVC output dir..."
+declare -A tvc_results
+for dir in ${resultsDir}/plugin_out/*; do 
+    dir=$(basename $dir)
+    plugin_results=(${dir//./ })
+    if [[ ${plugin_results[0]} != variantCaller_out ]]; then 
+        #echo "skipping over '${plugin_results[0]}'..."
+        continue
+    elif [[ "${plugin_results[1]+isset}" ]]; then
+        echo "${plugin_results[1]}  => ${plugin_results[0]}"
+        tvc_results[${plugin_results[1]}]=$dir
+    else
+        tvc_results[0]=$dir
+    fi
+done
+
+if [[ ${#tvc_results[@]} -eq 0 ]]; then
+    echo "ERROR: TVC has not been run on this sample. Please run TVC before running this script!"
+    exit 1
+else
+    largest=0
+    for key in ${!tvc_results[@]}; do 
+        if [[ $key > $largest ]]; then
+            largest=$key
+        fi
+    done
+    tvc_output=${tvc_results[$largest]}
+    echo "TVC output directory '$tvc_output' found. Continuing."
+    echo
+fi
+
+tvc_output="plugin_out/$tvc_output"
 
 # Check to make sure TVC has been run and you are in the results dir
-if [ ! -d "$TVCout" ]; then
+if [[ ! -d $tvc_output ]]; then
 	echo "[ ERROR ] Either you are not running this script from a run results folder, or TVC has not been run on this sample."
 	exit 1
 fi
@@ -127,27 +156,31 @@ fi
 if [ ! -d "$colvarsDir" ]; then 
 	echo "[ ERROR ] No 'collectedVariants' directory found. Something bad happened!"
 	exit 1
+else
+    cd $colvarsDir
 fi
 
 if [[ $is_RandD_server -eq 1 ]]; then
 	echo "[ NOTE ]: Running in an R&D environment.  No automatic cpscChecker run.  Please run the cpscChecker tool manually."
 else
 	# Verify conditions are correct for cpscChecker 
-	if [ ! -f "$colvarsDir/sampleKey.txt" ]; then
+	if [[ ! -f "$colvarsDir/sampleKey.txt" ]]; then
 		printf "[ ERROR ] No sampleKey file found.  Can not run cpscChecker!\n"
-	elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
+    # Going to stick with the tab delimited file here since the VCF file name is not reliable (I rename these based
+    # on the sample key and if there is a non-standard sample naming, we'll lose the sample unintentionally.  
+    #elif [ ! -f "$cpscSample" ]; then
+    elif [ ! -f "$cpscSample" ]; then
 		printf "[ ERROR ] No "$cpscSample" file found.  Did you run a CPSC sample?\n";
 		exit 1
 	fi	
 		
 	#  If conditions are OK, let's run the script.
-	cd $colvarsDir
 	printf "Running cpscChecker for '$runName' on sample '$cpscSample'...\n"
-	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup $cpscSample"
+	#eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup $cpscSample"
+	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -T $cpscSample -o cpscChecker_output.txt"
 fi
 
 # Prepare a zip archive of results for experiment folder 
-cd $colvarsDir
 zip "$runName"_variants.zip * > /dev/null 2>&1
 
 echo -e "\nScript complete. Results written to the 'collectedVariants' directory\n" 
