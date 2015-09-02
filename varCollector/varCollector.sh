@@ -29,14 +29,6 @@ EOT
 
 resultsDir=$(pwd)
 
-# If this is a test reanalysis with a non-conventional name, grep's return code will cause issues.
-if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
-    echo "No conventional run number detected in experiment name. Using a random number."
-    run_num="test-$RANDOM"
-else
-    run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
-fi
-
 cpscSample="IonXpress_001.txt"
 cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
@@ -82,6 +74,14 @@ do
 	esac
 done
 shift $((OPTIND - 1))
+
+# If this is a test reanalysis with a non-conventional name, grep's return code will cause issues.
+if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
+    echo "No conventional run number detected in experiment name. Using a random number."
+    run_num="test-$RANDOM"
+else
+    run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
+fi
 
 # For TSS v4.4+ old plugin results kept and we need to collect the latest data.
 declare -A tvc_results
