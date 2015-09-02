@@ -3,19 +3,22 @@
 # results folder.  This script requires a sampleKey file indicating the barcode and the sample it represents. 
 #
 # 11/7/2013 - Updated for TSv4.0
+# 4/22/2015 - Updated for TSv4.4.2
 #
 # Created: 2/25/2013	Dave Sims
 #########################################################################################################################
 use warnings;
 use strict;
-use Getopt::Long;
-use Data::Dumper;
-use Data::Dump;
-use Cwd; 
-use File::Copy;
+use autodie;
 
-( my $scriptname = $0 ) =~ s/^(.*\/)+//;
-my $version = "v2.1.4";
+use Cwd qw(abs_path getcwd); 
+use File::Basename;
+use File::Copy;
+use Getopt::Long qw( :config auto_abbrev bundling no_ignore_case );
+use Data::Dump;
+
+my $scriptname = basename($0);
+my $version = "v3.1.0_042215";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -24,18 +27,23 @@ EOT
 
 my $usage = <<"EOT";
 USAGE: $scriptname [options]
-    -s, --samplekey   Custom sample key file	
-    -v, --version     Version Information
-    -h  --help        Display the Help information
+    -t, --tvc_results   Custom TVC results directory if not found at <results>/plugin_out/variantCaller_out/
+    -s, --samplekey     Custom sample key file	
+    -v, --version       Version Information
+    -h  --help          Display the Help information
 EOT
 
 my $ver_info = 0;
 my $help = 0;
 my $custom_key;
+my $TVCout = "/variantCaller_out";
+my $outdir = '';
 
-GetOptions( "samplekey=s"   => \$custom_key,
-            "version"       => \$ver_info,
-            "help"          => \$help )
+GetOptions( "outdir|o=s"         => \$outdir, 
+            "tvc_results|t=s"    => \$TVCout,
+            "samplekey|s=s"      => \$custom_key,
+            "version|v"          => \$ver_info,
+            "help|h"             => \$help )
         or print $usage;
 
 sub help {
@@ -52,40 +60,48 @@ help if $help;
 version if $ver_info;
 
 #########------------------------------ END ARG Parsing ---------------------------------#########
-
-# Defaults vars
-my $TVCout = "plugin_out/variantCaller_out/";
-
+#
 # Check the directory
 my $resultsDir = getcwd;
-if ( ! -d "$resultsDir/$TVCout" ) {
+my $tvc_path = "$resultsDir/plugin_out/$TVCout";
+
+if ( ! -d $tvc_path ) { 
 	die "ERROR: Either you are not running this script from a run results folder, or TVC has not yet been run on this sample\n";
 }
-
-#my ($runid) = $resultsDir =~ /([P|M]CC-\d+)/;
-my ($runid) = $resultsDir =~ /((?:[P|M]CC|MC[12])-\d+)/;
+my ($runid) = $resultsDir =~ /([PM]C[123C]-\d+)/;
 
 # Make collectedVariants directory
-my $colVarsDir = "$resultsDir/collectedVariants/";
-mkdir( $colVarsDir ) unless ( -e $colVarsDir );
+# Don't need this if it's called from a wrapper script.
+if ( ! $outdir ) {
+    $outdir = "$resultsDir/collectedVariants";
+    my ($plugin_number) = $TVCout =~ /\.(\d+)$/;
+    $outdir .= ".$plugin_number" if $plugin_number;
+}
 
 my $sampleKey;
 # Allow for custom sample key in order to run standalone
 if ( defined $custom_key ) {
 	$sampleKey = $custom_key;
 } else {
-	$sampleKey = "$colVarsDir/sampleKey.txt";
+	$sampleKey = "$outdir/sampleKey.txt";
 }
 
 # Check to make sure we have a valid sampleKey and load up a list
 open( my $skey_fh, "<", "$sampleKey" ) || die "No sample key found: $!\n";
-my %barcodes = map { split } <$skey_fh>;
+#my %barcodes = map { chomp; split(/\t/) } <$skey_fh>;
+my %barcodes;
+while (<$skey_fh>) {
+    chomp;
+    my ($bc, $samp) = split( /\t/ );
+    $samp =~ tr/ /_/;
+    $barcodes{$bc} = $samp;
+}
 close( $skey_fh );
 
 # Read list of IonXpress dirs in TVC results dir
-opendir( TVCRESULTS, "$TVCout" ) || die "Can't read TVC results dir: $!\n";
-my @sample_dirs = grep { $barcodes{$_} } readdir( TVCRESULTS );
-closedir( TVCRESULTS );
+opendir( my $tvc_out, $tvc_path ) || die "Can't read TVC results dir: $!\n";
+my @sample_dirs = grep { $barcodes{$_} } readdir($tvc_out);
+closedir $tvc_out;
 
 # Sanity check to make sure that the sampleKey is a good match for the data available
 my $sampleNumber = 0;
@@ -108,16 +124,15 @@ if ( $sampleNumber == 0  || ( $sampleNumber + 1 ) < $numBC ) { # Have to add 1 t
 }
 
 # Move to the variantCaller_out directory and grab copies of the variants files  Switch to the alleles.xls table as variants.xls is deprecated.
-chdir( "$TVCout" );
+chdir( $tvc_path );
 foreach my $sample ( @sample_dirs ) {
     my $tab_file = "$sample/alleles.xls"; # replaces variants.xls
 	my $vcf_file = "$sample/TSVC_variants.vcf";
 
 	# Grab alleles.xls files
 	if ( -f $tab_file ) {
-		copy( $tab_file, "$colVarsDir/$sample.txt" ); #make copy of unfiltered data
+		copy( $tab_file, "$outdir/$sample.txt" ); #make copy of unfiltered data
 		filter_vars( \$tab_file ); #filter and add to collectedVariants dir
-   
 	} 
 	else {
 		warn "The tabular variant call file: '$sample/alleles.xls' can not be found! $!\n";
@@ -125,7 +140,7 @@ foreach my $sample ( @sample_dirs ) {
 
 	# Grab vcf files
 	if ( -f $vcf_file ) {
-		copy( $vcf_file, "$colVarsDir/$barcodes{$sample}_${runid}.vcf" ); 
+		copy( $vcf_file, "$outdir/$barcodes{$sample}_${runid}.vcf" ); 
 		filter_vars( \$vcf_file );
 	} else {
 		warn "No TSVC_variants.vcf file found.  Skipping...\n";
@@ -137,7 +152,6 @@ summary_table();
 
 sub filter_vars {
 	# Get rid of the 'Absent' and 'No Call' data to make more informative output.  Will keep raw data for troubleshooting later  
-	
 	my $varfile = shift;
 
 	my @filtered_data;
@@ -151,7 +165,7 @@ sub filter_vars {
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
 	if ( $$varfile =~ /\.vcf$/ ) {
-        my $outfile = "$colVarsDir/${sample_name}_${runid}_filtered.vcf";
+        my $outfile = "$outdir/${sample_name}_${runid}_filtered.vcf";
         return;
 	}
     elsif ( $$varfile =~ /\.xls$/ ) {
@@ -159,7 +173,7 @@ sub filter_vars {
 		open( my $xls_fh, "<", $$varfile ) || die "Can't open the variants.xls file for reading";
 		@filtered_data =  grep { ! /(Absent|No Call)/ } <$xls_fh>; # Get only variant containing lines
 
-        my $outfile = "$colVarsDir/${sample_name}_filtered.txt";
+        my $outfile = "$outdir/${sample_name}_filtered.txt";
 
         open( my $out_fh, ">", $outfile ) || die "Can't create file '$outfile' for writing: $!";
         print $out_fh $tab_header;
@@ -186,20 +200,21 @@ sub summary_table {
     my @tab_fields = qw{ Chrom Position Gene AmpID Type Ref Alt Freq Qual Cov RefCov VarCov HP Hotspot };
     my $tab_header = sprintf( $theader_format, @tab_fields );
 
-	my $outputFile = "$colVarsDir" .  $runid . "_allVariants.tsv";
+	#my $outputFile = "$outdir" .  $runid . "_allVariants.tsv";
+	my $outputFile = "${outdir}/${runid}_allVariants.tsv";
 	open ( my $summary_fh, ">", $outputFile ) || die "Output file: '$outputFile' can not be opened for writing! $!";
 
-	opendir( VARSDIR, "$colVarsDir" ) || die "Can't read collectedVariants directory! $!";
-    my @var_files = map { "$barcodes{$_}_filtered.txt" } map { $_ =~ /(IonXpress_\d+)\.txt/ } readdir( VARSDIR );
+	opendir( my $vars_dir, "$outdir" ) || die "Can't read collectedVariants directory! $!";
+    my @var_files = map { "$barcodes{$_}_filtered.txt" } map { $_ =~ /(IonXpress_\d+)\.txt/ } readdir($vars_dir);
 
 	# Read through all the variant call files, concatenate them, and add the sample name to the row.
 	foreach my $varFile ( sort( @var_files ) ) {
         my ($sample_name) = $varFile =~ /^(.*)_filtered.*/;
-		open ( VARFILE, "<", "$colVarsDir/$varFile" ) || die "Can't open this file for some reason: '$varFile'\n";
+		open ( my $varfile, "<", "$outdir/$varFile" ) || die "Can't open this file for some reason: '$varFile'\n";
 		print $summary_fh "::: Variant Calls for $sample_name :::\n\n";
         print $summary_fh "$tab_header";
 
-        print $summary_fh "$sample_name\t$_" while (<VARFILE>);
+        print $summary_fh "$sample_name\t$_" while (<$varfile>);
         print $summary_fh "\n";
 	}
     return;
