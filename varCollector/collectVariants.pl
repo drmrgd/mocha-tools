@@ -3,9 +3,6 @@
 # the main results folder.  This script requires a sampleKey file indicating the barcode and the sample it 
 # represents. 
 #
-# 11/7/2013 - Updated for TSv4.0
-# 4/22/2015 - Updated for TSv4.4.2
-#
 # Created: 2/25/2013	Dave Sims
 ###################################################################################################################
 use warnings;
@@ -19,7 +16,7 @@ use Getopt::Long qw( :config auto_abbrev bundling no_ignore_case );
 use Data::Dump;
 
 my $scriptname = basename($0);
-my $version = "v3.3.0_090815";
+my $version = "v3.4.0_090915";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -37,13 +34,9 @@ EOT
 my $ver_info = 0;
 my $help = 0;
 my $custom_key;
-#my $TVCout = "/variantCaller_out";
-#my $tvc_out;
 my $outdir; 
 
 GetOptions( "outdir|o=s"         => \$outdir, 
-            #"tvc_results|t=s"    => \$TVCout,
-            #"tvc_results|t=s"    => \$tvc_out,
             "samplekey|s=s"      => \$custom_key,
             "version|v"          => \$ver_info,
             "help|h"             => \$help )
@@ -63,21 +56,15 @@ help if $help;
 version if $ver_info;
 
 #########------------------------------ END ARG Parsing ---------------------------------#########
-#
-# Check the directory
+
+# Check the directory and paths
 my $resultsDir = getcwd;
 my $tvc_out = shift;
-print "dir: $tvc_out\n";
-#TODO
+
 die "ERROR: You must provide the TVC Plugin results directory to process!\n" unless $tvc_out;
-#my $tvc_path = "$resultsDir/plugin_out/$TVCout";
+my $tvc_path = "$resultsDir/plugin_out/" . basename($tvc_out);
+die "ERROR: No such directory '$tvc_path'! TVC not yet run, or you are not running from a results directory.\n" unless -d $tvc_path;
 
-#print "path: $tvc_path\n";
-
-#if ( ! -d $tvc_path ) { 
-#die "ERROR: Either you are not running this script from a run results folder, or TVC has not yet been run!\n" unless (-d $tvc_path); 
-die "ERROR: Either you are not running this script from a run results folder, or TVC has not yet been run!\n" unless (-d $tvc_out); 
-#}
 my ($runid) = $resultsDir =~ /([PM]C[123C]-\d+)/;
 
 # Make collectedVariants directory
@@ -95,10 +82,10 @@ if ( defined $custom_key ) {
 } else {
 	$sampleKey = "$outdir/sampleKey.txt";
 }
+die "ERROR: sampleKey file not found in '$outdir'!\n" unless (-e $sampleKey);
 
 # Check to make sure we have a valid sampleKey and load up a list
 open( my $skey_fh, "<", "$sampleKey" ) || die "No sample key found: $!\n";
-#my %barcodes = map { chomp; split(/\t/) } <$skey_fh>;
 my %barcodes;
 while (<$skey_fh>) {
     chomp;
