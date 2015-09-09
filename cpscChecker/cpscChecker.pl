@@ -23,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.9.6_062915-dev";
+my $version = "v3.9.8_090915-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -71,19 +71,19 @@ sub version {
 help if $help;
 version if $ver_info;
 
-# Make sure enough args passed to script
-if ( defined $lookup && $lookup ne '?' ) {
-    unless ($tab || $vcf) {
-        print "ERROR: Not enough arguments passed to script!\n\n";
-        print "$usage\n";
-        exit 1;
-    }
-}
-
 # Set up some formatted and colored output
 my $err = colored( 'ERROR:', 'bold red on_black');
 my $warn = colored( 'WARNING:', 'bold yellow on_black');
 my $info = colored( 'INFO:', 'bold cyan on_black');
+
+# Make sure enough args passed to script
+if ( defined $lookup && $lookup ne '?' ) {
+    unless ($tab || $vcf) {
+        print "$err You must define either a VCF file with '-V' or a TSV file with '-T'!\n\n";
+        print "$usage\n";
+        exit 1;
+    }
+}
 
 # Write output to either indicated file or STDOUT
 my $out_fh;
@@ -167,19 +167,14 @@ sub read_vcf {
 sub validate_lookup {
     my $file_ref = shift;
     my $lfile_path = dirname(abs_path($0));
-    my %lfiles = (
-        '3'    => 'cpsc_v3_lookupTable.txt',
-        '4'    => 'cpsc_v4_lookupTable.txt',
-        '4.1'  => 'cpsc_v41_lookupTable.txt',
-        '4ocp' => 'cpsc_v4ocp_lookupTable.txt',
-        'mc'   => 'cpsc_mc_lookupTable.txt',
-        '5'    => 'cpsc_v5_lookupTable.txt',
-        '6'    => 'cpsc_v6_lookupTable.txt',
-        'sc1'  => 'seracare_misc_v1.0_022515.txt',
-        'sc2'  => 'seracare_v2.0_060115.txt',
-    );
-    my $lookup_file;
 
+    # Instead of hard coding tables, use a file with tables to load.  Easier when we add
+    # new ones downstream.
+    open (my $index_fh, "<", "$lfile_path/lookup_tables/lookup_file_index.txt");
+    my %lfiles = map{ chomp; split(/,/) } <$index_fh>;
+    close $index_fh;
+    
+    my $lookup_file;
     if ( $$file_ref eq '?' ) {
         print "Valid lookup files are: \n";
         printf "\t%-8s=>  %s\n", ($_, $lfiles{$_}) for sort keys %lfiles;
@@ -193,7 +188,7 @@ sub validate_lookup {
         $lookup_file = "$lfile_path/lookup_tables/$lfiles{$$file_ref}";
     }
 
-    print "$info Lookup file '$lookup_file' selected\n";
+    print "$info Lookup file '" . basename($lookup_file) . "' selected\n";
     return $lookup_file;
 }
 
@@ -222,9 +217,13 @@ sub proc_plas_data {
 
         # Do a little post processing to get the gene name and fix variant ID
         push( @{$results{$var}}, $$cpsc_lookup{$var}->[0] );
-        if ($results{$var}->[9] =~ /^[-.]/) {
-            $results{$var}->[9] = $$cpsc_lookup{$var}->[3];
+        # Have to adjust the fields since we removed all NOCALL data from final output.
+        if ($results{$var}->[7] =~ /^[-.]/) {
+            $results{$var}->[7] = $$cpsc_lookup{$var}->[3];
         }
+        #if ($results{$var}->[9] =~ /^[-.]/) {
+            #$results{$var}->[9] = $$cpsc_lookup{$var}->[3];
+        #}
     }
     return %results;
 }
@@ -241,7 +240,8 @@ sub print_results {
     print ":::  Plasmids Detected in Sample  :::\n";
     printf $format, @header_elems;
     for my $var ( sort { versioncmp( $a, $b ) } keys %$found_plasmids ) {
-        printf $format, @{$$found_plasmids{$var}}[0,10,1,2,5,6,7,8,9];
+        #printf $format, @{$$found_plasmids{$var}}[0,10,1,2,5,6,7,8,9];
+        printf $format, @{$$found_plasmids{$var}}[0,8,1..7];
     }
 
     # Print out a list of thos missing only if we have some missing.
