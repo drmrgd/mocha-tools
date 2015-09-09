@@ -1,6 +1,10 @@
 #!/usr/bin/perl
 # Generate a CPSC Checker report starting with a VCF file. This replaces the original CPSC Checker
 # script which required a variants.xls file to run.  
+# 
+# TODO:
+#     - Fix issue with differential reporting betwen the VCF and TSV files.  VCF is not capturing the 
+#       indel variants for some reason!
 #
 # 5/28/2015 - D Sims
 ######################################################################################################
@@ -139,9 +143,10 @@ sub read_tab {
         chomp;
         next unless /^chr/;
         my @fields = split(/\t/);
+        next if $fields[6] == 0; # get rid of ref calls.
         my $var_coord = join(':', @fields[0,1]);
         my $ref_cov = $fields[18]-$fields[24];
-        $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2..6],$fields[18],$ref_cov,$fields[24],$fields[11]];
+        $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2,3,6,18], $ref_cov, $fields[24], $fields[11]];
     }
     close $tab_fh;
     return %tab_data;
