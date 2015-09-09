@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.3.0_090815"
+VERSION="$(basename $0) - v3.4.0_090915"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -30,7 +30,7 @@ EOT
 resultsDir=$(pwd)
 
 cpscSample="IonXpress_001.txt"
-cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
+cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for information)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
 
 # Get absolute path of scriptname in order to be more flexible later. 
@@ -87,27 +87,16 @@ fi
 declare -A tvc_results
 for dir in ${resultsDir}/plugin_out/*; do
     #dir=$(basename $dir)
-    echo "testing $dir..."
-    #if [[ $dir =~ variantCaller_out.[0-9]+ ]]; then
     if [[ $dir =~ variantCaller_out ]]; then
         if [[ $dir =~ [0-9]+$ ]]; then 
             tvc_run=(${dir//./ })
-            #( IFS=,; echo "run components: ${tvc_run[*]}" )
-            #echo "key: ${tvc_run[1]}"
-            #echo "dir: $dir"
             tvc_results[${tvc_run[1]}]=$dir
         else
             echo "Old, non-numerical plugin results directory format found..."
-            tvc_results[213]=$dir
+            tvc_results[001]=$dir
         fi
-    #else
-        #echo "$dir is not a candidate...skipping..."
     fi
 done
-
-#for run in ${!tvc_results[@]}; do
-    #echo "$run  => ${tvc_results[$run]}"
-#done
 
 if [[ ${#tvc_results[@]} -eq 0 ]]; then
     echo "[ ERROR ]: TVC has not been run on this sample.  Please run TVC before running this script"
@@ -146,11 +135,9 @@ samplekey_file="${colvarsDir}/sampleKey.txt"
 
 if [[ $customKey ]]; then
     echo "Using custom sampleKey '$customKey'"
-	#cp $customKey "$colvarsDir/sampleKey.txt"
 	cp $customKey $samplekey_file
 else
     echo "Generating sampleKey.txt..."
-    #eval "perl $SCRIPTPATH/sampleKeyGen.pl -o $colvarsDir/sampleKey.txt" 
     eval "perl $SCRIPTPATH/sampleKeyGen.pl -o $samplekey_file"
 	if [[ $? -ne 0 ]]; then
 		echo "The sampleKeyGen tool had a problem and failed to run correctly!" 
@@ -160,7 +147,7 @@ fi
 
 # Run collectVariants.pl
 echo "Running collectVariants.pl on TVC results..." 
-eval "perl $SCRIPTPATH/collectVariants.pl -s $samplekey_file $tvc_output"
+eval "perl $SCRIPTPATH/collectVariants.pl -s $samplekey_file -o $colvarsDir $tvc_output"
 if [[ $? -ne 0 ]]; then
 	echo "[ ERROR ] The collectVariants.pl script had problems and failed to run!" 
 	exit 1
