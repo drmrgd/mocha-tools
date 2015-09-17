@@ -27,7 +27,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.9.8_090915-dev";
+my $version = "v3.9.10_091715-dev";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -127,24 +127,39 @@ if ($vcf) {
 }
 
 # Check VCF dataset against lookup hash for final results.
+# XXX
 my %plas_results = proc_plas_data(\%cpsc_lookup_data,\%raw_data);
+
+# TODO
+print "Got to line 134\n";
+dd \%plas_results;
+exit;
 
 # Print out the results.
 print_results(\%plas_results, \%cpsc_lookup_data);
 
 sub read_tab {
+    # TODO: Issue here with REF / ALT and OREF / OALT not always agreeing (see the ATM indel for example).  Need to find 
+    # a better way to map this.
     my $input_file = shift;
     my %tab_data;
 
     print "Checking tab delimited variants file '$$input_file' for CPSC data...\n";
 
     open( my $tab_fh, "<", $$input_file );
+    my $sample_line = <$tab_fh>;
+    die "$err '$$input_file' does not appear to be a TSV file!\n" if $sample_line =~ /^#/;
     while (<$tab_fh>) {
         chomp;
         next unless /^chr/;
         my @fields = split(/\t/);
-        next if $fields[6] == 0; # get rid of ref calls.
         my $var_coord = join(':', @fields[0,1]);
+
+        #next unless $var_coord eq "chr3:178952150"; # PIK3CA insA
+        next unless $var_coord eq 'chr11:108117847'; # ATM delGT
+        #next unless $var_coord eq "chr7:55242466"; # EGFR del15
+
+        next if $fields[6] == 0; # get rid of ref calls.
         my $ref_cov = $fields[18]-$fields[24];
         $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2,3,6,18], $ref_cov, $fields[24], $fields[11]];
     }
@@ -153,6 +168,8 @@ sub read_tab {
 }
 
 sub read_vcf {
+    # TODO: Issue here with REF / ALT and OREF / OALT not always agreeing (see the ATM indel for example).  Need to find 
+    # a better way to map this.
     my $vcf_file = shift;
     my %vcf_data;
 
@@ -160,13 +177,64 @@ sub read_vcf {
 
     chomp(my $path = qx( which vcfExtractor.pl ));
     my $vcf_extractor_cmd = qq{ $path -Nn $$vcf_file };
-    open( my $parsed_vcf, "-|", $vcf_extractor_cmd ) || die "ERROR parsing VCF file: $!"; 
+
+    my ($parsed_vcf,$child_pid, $child_rc);
+    # Better error handling to capture failed VCF Extractor output.
+    unless($child_pid = open($parsed_vcf, "-|")) {
+        open(STDERR, ">&STDOUT");
+        exec($vcf_extractor_cmd);
+        die "ERROR: could not execute program:$!";
+    }
+    waitpid($child_pid,0);
+    $child_rc = $? >> 8;
+    die "$err Can not parse VCF file '$$vcf_file'\n" if $child_rc;
+
     while (<$parsed_vcf>) {
         next unless /^chr/;
         my @fields = split;
+        #next unless $fields[0] eq "chr3:178952150"; # PIK3CA insA
+        #next unless $fields[0] eq 'chr11:108117847'; # ATM delGT
+        #next unless $fields[0] eq "chr7:55242466"; # EGFR del15
+        dd @fields;
+        my ($ref, $alt) = @fields[1,2];
+        print "original ref: $ref\n";
+        print "original alt: $alt\n";
+        my ($rev_ref, $rev_alt) = rev_and_trim( \$ref, \$alt );
+        #print "reversed ref: $rev_ref\n";
+        #print "reversed alt: $rev_alt\n";
+        my ($norm_ref, $norm_alt) = rev_and_trim( \$rev_ref, \$rev_alt );
+        
+        #print "normalized ref: $norm_ref\n";
+        #print "normalized alt: $norm_alt\n";
+
+        # Reassign REF and ALT alleles.
+        $fields[1] = $norm_ref;
+        $fields[2] = $norm_alt;
+
         $vcf_data{join(':', @fields[0..2])} = [@fields];
     } 
     return %vcf_data;
+}
+
+sub rev_and_trim {
+    # reverse and trim common sequence from both ends of ref and alt seqs, so that we can remove the anchor bases.
+    no warnings; # Turn off so we don't have to deal with empty var warnings.
+    my ($ref, $alt) = @_;
+    
+    my @rev_ref = split(//, reverse($$ref));
+    my @rev_alt = split(//, reverse($$alt));
+
+    #while (@rev_ref > 1 && @rev_alt > 1 && $rev_ref[0] eq $rev_alt[0]) {
+    while ($rev_ref[0] eq $rev_alt[0]) {
+        shift @rev_ref;
+        shift @rev_alt;
+    }
+
+    # If there's nothing left, replace with a hyphen.
+    $rev_ref[0] //= '-';
+    $rev_alt[0] //= '-';
+
+    return (join('', @rev_ref), join('', @rev_alt));
 }
 
 sub validate_lookup {
@@ -212,23 +280,26 @@ sub load_lookup {
 }
 
 sub proc_plas_data {
-    my ($cpsc_lookup,$vcf_data) = @_;
+    # Do a little post processing on variant call data to add in COSMIC IDs and whatnot
+    my ($cpsc_lookup, $variant_data) = @_;
     my %results;
     my %missing;
 
-    for my $var (keys %$vcf_data) {
+    # XXX
+    #dd $variant_data;
+    #exit;
+
+    for my $var (keys %$variant_data) {
         next unless (exists $$cpsc_lookup{$var});
-        @{$results{$var}} = @{$$vcf_data{$var}};
+        @{$results{$var}} = @{$$variant_data{$var}};
 
         # Do a little post processing to get the gene name and fix variant ID
         push( @{$results{$var}}, $$cpsc_lookup{$var}->[0] );
+
         # Have to adjust the fields since we removed all NOCALL data from final output.
         if ($results{$var}->[7] =~ /^[-.]/) {
             $results{$var}->[7] = $$cpsc_lookup{$var}->[3];
         }
-        #if ($results{$var}->[9] =~ /^[-.]/) {
-            #$results{$var}->[9] = $$cpsc_lookup{$var}->[3];
-        #}
     }
     return %results;
 }
