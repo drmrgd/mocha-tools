@@ -1,10 +1,6 @@
 #!/usr/bin/perl
 # Generate a CPSC Checker report starting with a VCF file. This replaces the original CPSC Checker
 # script which required a variants.xls file to run.  
-# 
-# TODO:
-#     - Fix issue with differential reporting betwen the VCF and TSV files.  VCF is not capturing the 
-#       indel variants for some reason!
 #
 # 5/28/2015 - D Sims
 ######################################################################################################
@@ -27,7 +23,7 @@ print colored("*" x 50, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.9.10_091715-dev";
+my $version = "v3.9.12_091715_rc";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
@@ -80,6 +76,10 @@ my $err = colored( 'ERROR:', 'bold red on_black');
 my $warn = colored( 'WARNING:', 'bold yellow on_black');
 my $info = colored( 'INFO:', 'bold cyan on_black');
 
+# NOTE: Let's get rid of the TSV parsing for this.  I think it's going to be more reliable to work with a 
+#       VCF file from now on.  Temporarily disable TSV parsing until I work it out.
+die "$err Support for reading TSV files is disabled and will be removed in future.  Use VCF file instead\n" if $tab;
+
 # Make sure enough args passed to script
 if ( defined $lookup && $lookup ne '?' ) {
     unless ($tab || $vcf) {
@@ -127,49 +127,12 @@ if ($vcf) {
 }
 
 # Check VCF dataset against lookup hash for final results.
-# XXX
 my %plas_results = proc_plas_data(\%cpsc_lookup_data,\%raw_data);
-
-# TODO
-print "Got to line 134\n";
-dd \%plas_results;
-exit;
 
 # Print out the results.
 print_results(\%plas_results, \%cpsc_lookup_data);
 
-sub read_tab {
-    # TODO: Issue here with REF / ALT and OREF / OALT not always agreeing (see the ATM indel for example).  Need to find 
-    # a better way to map this.
-    my $input_file = shift;
-    my %tab_data;
-
-    print "Checking tab delimited variants file '$$input_file' for CPSC data...\n";
-
-    open( my $tab_fh, "<", $$input_file );
-    my $sample_line = <$tab_fh>;
-    die "$err '$$input_file' does not appear to be a TSV file!\n" if $sample_line =~ /^#/;
-    while (<$tab_fh>) {
-        chomp;
-        next unless /^chr/;
-        my @fields = split(/\t/);
-        my $var_coord = join(':', @fields[0,1]);
-
-        #next unless $var_coord eq "chr3:178952150"; # PIK3CA insA
-        next unless $var_coord eq 'chr11:108117847'; # ATM delGT
-        #next unless $var_coord eq "chr7:55242466"; # EGFR del15
-
-        next if $fields[6] == 0; # get rid of ref calls.
-        my $ref_cov = $fields[18]-$fields[24];
-        $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2,3,6,18], $ref_cov, $fields[24], $fields[11]];
-    }
-    close $tab_fh;
-    return %tab_data;
-}
-
 sub read_vcf {
-    # TODO: Issue here with REF / ALT and OREF / OALT not always agreeing (see the ATM indel for example).  Need to find 
-    # a better way to map this.
     my $vcf_file = shift;
     my %vcf_data;
 
@@ -192,21 +155,10 @@ sub read_vcf {
     while (<$parsed_vcf>) {
         next unless /^chr/;
         my @fields = split;
-        #next unless $fields[0] eq "chr3:178952150"; # PIK3CA insA
-        #next unless $fields[0] eq 'chr11:108117847'; # ATM delGT
-        #next unless $fields[0] eq "chr7:55242466"; # EGFR del15
-        dd @fields;
         my ($ref, $alt) = @fields[1,2];
-        print "original ref: $ref\n";
-        print "original alt: $alt\n";
         my ($rev_ref, $rev_alt) = rev_and_trim( \$ref, \$alt );
-        #print "reversed ref: $rev_ref\n";
-        #print "reversed alt: $rev_alt\n";
         my ($norm_ref, $norm_alt) = rev_and_trim( \$rev_ref, \$rev_alt );
         
-        #print "normalized ref: $norm_ref\n";
-        #print "normalized alt: $norm_alt\n";
-
         # Reassign REF and ALT alleles.
         $fields[1] = $norm_ref;
         $fields[2] = $norm_alt;
@@ -285,10 +237,6 @@ sub proc_plas_data {
     my %results;
     my %missing;
 
-    # XXX
-    #dd $variant_data;
-    #exit;
-
     for my $var (keys %$variant_data) {
         next unless (exists $$cpsc_lookup{$var});
         @{$results{$var}} = @{$$variant_data{$var}};
@@ -353,4 +301,29 @@ sub field_width {
     # Add some extra padding in there.
     @widths = map { $_ + 4 } @widths;
     return \@widths;
+}
+
+sub read_tab {
+    # TODO: Probably remove this sub and this functionality in order to make this more robust and simple.
+    # Issue here with REF / ALT and OREF / OALT not always agreeing (see the ATM indel for example).  Need to find 
+    # a better way to map this.
+    my $input_file = shift;
+    my %tab_data;
+
+    print "Checking tab delimited variants file '$$input_file' for CPSC data...\n";
+
+    open( my $tab_fh, "<", $$input_file );
+    my $sample_line = <$tab_fh>;
+    die "$err '$$input_file' does not appear to be a TSV file!\n" if $sample_line =~ /^#/;
+    while (<$tab_fh>) {
+        chomp;
+        next unless /^chr/;
+        my @fields = split(/\t/);
+        my $var_coord = join(':', @fields[0,1]);
+        next if $fields[6] == 0; # get rid of ref calls.
+        my $ref_cov = $fields[18]-$fields[24];
+        $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2,3,6,18], $ref_cov, $fields[24], $fields[11]];
+    }
+    close $tab_fh;
+    return %tab_data;
 }
