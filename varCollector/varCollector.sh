@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.4.0_090915"
+VERSION="$(basename $0) - v3.4.1_092215"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -29,7 +29,7 @@ EOT
 
 resultsDir=$(pwd)
 
-cpscSample="IonXpress_001.txt"
+#cpscSample="IonXpress_001.txt" # Moved below to grab run number.
 cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for information)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
 
@@ -82,6 +82,8 @@ if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
 else
     run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
 fi
+
+cpscSample="CPSC-mc_$run_num.vcf"
 
 # For TSS v4.4+ old plugin results kept and we need to collect the latest data.
 declare -A tvc_results
@@ -159,6 +161,7 @@ else
 	# Verify conditions are correct for cpscChecker 
 	if [ ! -f "$colvarsDir/sampleKey.txt" ]; then
 		printf "[ ERROR ] No sampleKey file found.  Can not run cpscChecker!\n"
+	#elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
 	elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
 		printf "[ ERROR ] No "$cpscSample" file found.  Did you run a CPSC sample?\n";
 		exit 1
@@ -167,7 +170,8 @@ else
 	#  If conditions are OK, let's run the script.
 	cd $colvarsDir
 	printf "Running cpscChecker for '$run_num' on sample '$cpscSample'...\n"
-	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -T $cpscSample -o cpscChecker_output.txt"
+	#eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -T $cpscSample -o cpscChecker_output.txt"
+	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -V $cpscSample -o cpscChecker_output.txt"
 fi
 
 # Prepare a zip archive of results for experiment folder 
