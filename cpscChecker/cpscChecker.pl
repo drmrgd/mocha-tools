@@ -16,14 +16,14 @@ use Data::Dump;
 use Sort::Versions;
 
 # Remove when in prod.
-print "\n";
-print colored("*" x 50, 'bold yellow on_black');
-print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER\n", 'bold yellow on_black');
-print colored("*" x 50, 'bold yellow on_black');
-print "\n\n";
+#print "\n";
+#print colored("*" x 50, 'bold yellow on_black');
+#print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER\n", 'bold yellow on_black');
+#print colored("*" x 50, 'bold yellow on_black');
+#print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v3.9.12_091715_rc";
+my $version = "v4.0.0_092215";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
