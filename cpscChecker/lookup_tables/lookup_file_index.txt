@@ -1,0 +1,9 @@
+mc,cpsc_mc_lookupTable.txt
+3,cpsc_v3_lookupTable.txt
+4.1,cpsc_v41_lookupTable.txt
+4,cpsc_v4_lookupTable.txt
+5,cpsc_v5_lookupTable.txt
+6,cpsc_v6_lookupTable.txt
+sc1,seracare_misc_v1.0_022515.txt
+sc2,seracare_v2.0_060115.txt
+sc3,seracare_af20_lookupTable.txt

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script to coordinate the collection of variants from a TVC analysis, naming and concatenation
 # of the .txt files containing the variants, and running of cpscChecker.pl to analyze the 
 # CPSC sample performance.
@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.1.0_042215"
+VERSION="$(basename $0) - v3.5.0_092215"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -29,16 +29,8 @@ EOT
 
 resultsDir=$(pwd)
 
-# If this is a test reanalysis with a non-conventional name, grep's return code will cause issues.
-if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
-    echo "No conventional run number detected in experiment name. Using a random number."
-    run_num="test-$RANDOM"
-else
-    run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
-fi
-
-cpscSample="IonXpress_001.txt"
-cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for inforamation)
+#cpscSample="IonXpress_001.txt" # Moved below to grab run number.
+cpsc_lookup=mc #Default lookup file for cpscChecker (see cpscChecker for information)
 is_RandD_server=0 #Change to 0 for production server with locked pipeline.
 
 # Get absolute path of scriptname in order to be more flexible later. 
@@ -83,14 +75,28 @@ do
 done
 shift $((OPTIND - 1))
 
+# If this is a test reanalysis with a non-conventional name, grep's return code will cause issues.
+if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
+    echo "No conventional run number detected in experiment name. Using a random number."
+    run_num="test-$RANDOM"
+else
+    run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
+fi
+
+cpscSample="CPSC-mc_$run_num.vcf"
+
 # For TSS v4.4+ old plugin results kept and we need to collect the latest data.
 declare -A tvc_results
 for dir in ${resultsDir}/plugin_out/*; do
-    echo $dir
-    dir=$(basename $dir)
-    if [[ $dir =~ variantCaller_out.[0-9]+ ]]; then
-        tvc_run=(${dir//./ })
-        tvc_results[${tvc_run[1]}]=$dir
+    #dir=$(basename $dir)
+    if [[ $dir =~ variantCaller_out ]]; then
+        if [[ $dir =~ [0-9]+$ ]]; then 
+            tvc_run=(${dir//./ })
+            tvc_results[${tvc_run[1]}]=$dir
+        else
+            echo "Old, non-numerical plugin results directory format found..."
+            tvc_results[001]=$dir
+        fi
     fi
 done
 
@@ -127,12 +133,14 @@ else
 fi
 
 # Use custom key instead of generating one and copy to $colvarsDir
+samplekey_file="${colvarsDir}/sampleKey.txt"
+
 if [[ $customKey ]]; then
     echo "Using custom sampleKey '$customKey'"
-	cp $customKey "$colvarsDir/sampleKey.txt"
+	cp $customKey $samplekey_file
 else
     echo "Generating sampleKey.txt..."
-    eval "perl $SCRIPTPATH/sampleKeyGen.pl -o $colvarsDir/sampleKey.txt" 
+    eval "perl $SCRIPTPATH/sampleKeyGen.pl -o $samplekey_file"
 	if [[ $? -ne 0 ]]; then
 		echo "The sampleKeyGen tool had a problem and failed to run correctly!" 
 		exit 1
@@ -141,7 +149,7 @@ fi
 
 # Run collectVariants.pl
 echo "Running collectVariants.pl on TVC results..." 
-eval "perl $SCRIPTPATH/collectVariants.pl -t $tvc_output"
+eval "perl $SCRIPTPATH/collectVariants.pl -s $samplekey_file -o $colvarsDir $tvc_output"
 if [[ $? -ne 0 ]]; then
 	echo "[ ERROR ] The collectVariants.pl script had problems and failed to run!" 
 	exit 1
@@ -153,7 +161,8 @@ else
 	# Verify conditions are correct for cpscChecker 
 	if [ ! -f "$colvarsDir/sampleKey.txt" ]; then
 		printf "[ ERROR ] No sampleKey file found.  Can not run cpscChecker!\n"
-	elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
+	#elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
+	elif [ ! -f "$colvarsDir/$cpscSample" ]; then
 		printf "[ ERROR ] No "$cpscSample" file found.  Did you run a CPSC sample?\n";
 		exit 1
 	fi	
@@ -161,7 +170,7 @@ else
 	#  If conditions are OK, let's run the script.
 	cd $colvarsDir
 	printf "Running cpscChecker for '$run_num' on sample '$cpscSample'...\n"
-	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup $cpscSample"
+	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -V $cpscSample -o cpscChecker_output.txt"
 fi
 
 # Prepare a zip archive of results for experiment folder 
