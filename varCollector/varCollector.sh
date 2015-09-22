@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.4.1_092215"
+VERSION="$(basename $0) - v3.5.0_092215"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -162,7 +162,7 @@ else
 	if [ ! -f "$colvarsDir/sampleKey.txt" ]; then
 		printf "[ ERROR ] No sampleKey file found.  Can not run cpscChecker!\n"
 	#elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
-	elif [ ! -f "$colvarsDir/IonXpress_001.txt" ]; then
+	elif [ ! -f "$colvarsDir/$cpscSample" ]; then
 		printf "[ ERROR ] No "$cpscSample" file found.  Did you run a CPSC sample?\n";
 		exit 1
 	fi	
@@ -170,7 +170,6 @@ else
 	#  If conditions are OK, let's run the script.
 	cd $colvarsDir
 	printf "Running cpscChecker for '$run_num' on sample '$cpscSample'...\n"
-	#eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -T $cpscSample -o cpscChecker_output.txt"
 	eval "perl $SCRIPTPATH/../cpscChecker/cpscChecker.pl -l $cpsc_lookup -V $cpscSample -o cpscChecker_output.txt"
 fi
 
