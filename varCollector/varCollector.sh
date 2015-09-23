@@ -10,7 +10,7 @@
 # Created 3/2/13 - Dave Sims
 #
 ##################################################################################################
-VERSION="$(basename $0) - v3.5.0_092215"
+VERSION="$(basename $0) - v3.6.0_092315"
 USAGE="$(cat <<EOT
 $VERSION [options]
 
@@ -88,14 +88,17 @@ cpscSample="CPSC-mc_$run_num.vcf"
 # For TSS v4.4+ old plugin results kept and we need to collect the latest data.
 declare -A tvc_results
 for dir in ${resultsDir}/plugin_out/*; do
-    #dir=$(basename $dir)
+    path=$(readlink -f $dir)
+    dir=$(basename $dir)
     if [[ $dir =~ variantCaller_out ]]; then
         if [[ $dir =~ [0-9]+$ ]]; then 
             tvc_run=(${dir//./ })
-            tvc_results[${tvc_run[1]}]=$dir
+            #tvc_results[${tvc_run[1]}]=$dir
+            tvc_results[${tvc_run[1]}]=$path
         else
             echo "Old, non-numerical plugin results directory format found..."
-            tvc_results[001]=$dir
+            #tvc_results[001]=$dir
+            tvc_results[001]=$path
         fi
     fi
 done
@@ -108,6 +111,7 @@ else
     for key in ${!tvc_results[@]}; do 
         if [[ $key > $largest ]]; then
             largest=$key
+            echo "largest: $largest"
         fi
     done
     
