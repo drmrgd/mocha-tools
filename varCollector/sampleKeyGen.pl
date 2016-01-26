@@ -14,7 +14,7 @@ use JSON;
 use File::Basename;
 
 my $scriptname = basename($0);
-my $version = "v3.4.0_012616";
+my $version = "v3.4.1_012616";
 my $description = <<"EOT";
 Program to read in the datasets_pipeline.json file setup during the planning for an Ion Torrent run, and 
 create a tab delimited sampleKey.txt file used in the rest of the variant reporting downstream. 
@@ -116,7 +116,7 @@ sub read_json {
 sub map_samples_retro {
     # Used for pre-v4.0 TSS versions, which mapped the ion_params_00.json file.  Now back again for v5.0 runs 
     # since the S5 data is a little trickier to map.  This seems more robust than using the datasets_pipline
-    # file now.
+    # file now, however this won't work with TSSv4.4.2 ion_params files since they are poorly formatted JSON.
     my $jsonfile = shift;
     my $parsed_json = read_json($jsonfile);
 
