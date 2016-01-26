@@ -14,7 +14,7 @@ use JSON;
 use File::Basename;
 
 my $scriptname = basename($0);
-my $version = "v3.0.0_061515";
+my $version = "v3.4.0_012616";
 my $description = <<"EOT";
 Program to read in the datasets_pipeline.json file setup during the planning for an Ion Torrent run, and 
 create a tab delimited sampleKey.txt file used in the rest of the variant reporting downstream. 
@@ -38,7 +38,6 @@ my $ver_info;
 my $help;
 my $preview;
 my $outfile = "sampleKey.txt";
-my $jsonfile;
 my $custom_json;
 my $retro_data;
 
@@ -72,26 +71,20 @@ if ( ! $preview ) {
 	$out_fh = \*STDOUT;
 }
 
-# Allow for custom JSON file processing.
+my $jsonfile;
 if ($retro_data) {
-    if ($custom_json) {
-        $jsonfile = $custom_json;
-    } else {
-        $jsonfile = 'ion_params_00.json';
-    }
+    $jsonfile = 'ion_params_00.json';
 } else {
-    if ($custom_json) {
-        $jsonfile = $custom_json;
-    } else {
-        $jsonfile = "basecaller_results/datasets_pipeline.json";
-    }
+    $jsonfile = "basecaller_results/datasets_pipeline.json";
 }
+# Allow for custom JSON file processing.
+$jsonfile = $custom_json if $custom_json; 
 
-die "ERROR: The JSON file '$jsonfile' can not be found. Check your path!" unless (-f $jsonfile);
+die "ERROR: The JSON file '$jsonfile' can not be found. Check your path!\n" unless (-f $jsonfile);
 
 ##----------------------------------------- End Command Arg Parsing ------------------------------------##
 my %bc_hash;
-($retro_data) ? (%bc_hash = map_samples_retro(\$jsonfile)) : (%bc_hash = map_samples(\$jsonfile));
+($retro_data) ? map_samples_retro(\$jsonfile) : map_samples(\$jsonfile);
 
 # Make sure that there is data to be printed, otherwise have to build a sample key manually
 if ( ( grep { $bc_hash{$_} =~ /none/i } keys %bc_hash ) == scalar( keys %bc_hash ) ) {
@@ -121,12 +114,21 @@ sub read_json {
 }
 
 sub map_samples_retro {
-    # Used for pre-v4.0 TSS versions, which mapped the ion_params_00.json file
+    # Used for pre-v4.0 TSS versions, which mapped the ion_params_00.json file.  Now back again for v5.0 runs 
+    # since the S5 data is a little trickier to map.  This seems more robust than using the datasets_pipline
+    # file now.
     my $jsonfile = shift;
-    
-    #my $bc_lookup = ion_params_decoder();
     my $parsed_json = read_json($jsonfile);
 
+    while (my ($sample,$barcode_info) = each $parsed_json->{'experimentAnalysisSettings'}{'barcodedSamples'}) {
+        for my $barcode (keys $barcode_info->{'barcodeSampleInfo'}) {
+            $bc_hash{$barcode} = "$sample-$barcode_info->{'barcodeSampleInfo'}{$barcode}{'nucleotideType'}";
+        }
+    }
+
+    return;
+
+=cut
     my %bc_lookup;
     my $shift;
     # For some reason the PCCPGM file is different than others.  Have to shift the index.
@@ -146,12 +148,15 @@ sub map_samples_retro {
         $bc_hash{$bc_lookup{$index}} = $sample_name;
     }
     return %bc_hash;
+=cut
 }
 
 sub map_samples {
     # Use the datasets_pipeline.json file to map samples to the barcode used based on the run plan.
     my $jsonfile = shift;
     my $parsed_json = read_json($jsonfile);
+    print "WARN: Using the datasets_pipeline.json file is deprecated and will soon be removed.  Use the '-r' 
+        option to parse ion_params_00.json instead.\n";
 
     # Sanity check to make sure the JSON file is valid
     if ( ! $$parsed_json{'barcode_config'} || $$parsed_json{'barcode_config'}->{'barcode_id'} ne 'IonXpress' ) {
