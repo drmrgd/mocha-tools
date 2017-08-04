@@ -76,11 +76,11 @@ done
 shift $((OPTIND - 1))
 
 # If this is a test reanalysis with a non-conventional name, grep's return code will cause issues.
-if [[ ! $(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+') ]]; then
+if [[ ! $(echo $resultsDir | grep -oE '[PM]C[1-6C]-[0-9]+') ]]; then
     echo "No conventional run number detected in experiment name. Using a random number."
     run_num="test-$RANDOM"
 else
-    run_num=$(echo $resultsDir | grep -oE '[PM]C[123C]-[0-9]+')
+    run_num=$(echo $resultsDir | grep -oE '[PM]C[1-6C]-[0-9]+')
 fi
 
 cpscSample="CPSC-mc_$run_num.vcf"
