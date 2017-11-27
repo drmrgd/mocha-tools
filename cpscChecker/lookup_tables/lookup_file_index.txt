@@ -1,3 +1,4 @@
+all,all_cpsc_vars.txt
 mc,cpsc_mc_lookupTable.txt
 3,cpsc_v3_lookupTable.txt
 4.1,cpsc_v41_lookupTable.txt
