@@ -8,3 +8,4 @@ mc,cpsc_mc_lookupTable.txt
 sc1,seracare_misc_v1.0_022515.txt
 sc2,seracare_v2.0_060115.txt
 sc3,seracare_af20_lookupTable.txt
+ct_pan,cpsc_ct_pancan_lookupTable.txt
