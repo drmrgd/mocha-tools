@@ -15,30 +15,19 @@ use Term::ANSIColor;
 use Data::Dump;
 use Sort::Versions;
 
-# Remove when in prod.
-#print "\n";
-#print colored("*" x 50, 'bold yellow on_black');
-#print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER\n", 'bold yellow on_black');
-#print colored("*" x 50, 'bold yellow on_black');
-#print "\n\n";
+my $version = "v4.2.112717";
+
+print "\n";
+print colored("*" x 75, 'bold yellow on_black');
+print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER (version: $version)\n", 'bold yellow on_black');
+print colored("*" x 75, 'bold yellow on_black');
+print "\n\n";
 
 my $scriptname = basename($0);
-my $version = "v4.0.0_092215";
 my $description = <<"EOT";
 Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
 file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
 plasmid was not found, print out a list of missing plasmids.  
-EOT
-
-my $usage = <<"EOT";
-USAGE: $scriptname [options] -l <lookup_file> -V <vcf_file> | -T <tabular file>
-    -l, --lookup           CPSC lookup file to use.  Use '?' to see list of available files.
-    -c, --custom_lookup    Use a custom lookup file rather than one of the built-in ones.
-    -V, --VCF              Input is from a TVC VCF File
-    -T, --Tab              Input is from a TVC tab delimited file (i.e. alleles.xls).
-    -o, --output           Send output to custom file.  Default is STDOUT.
-    -v, --version          Version information
-    -h, --help             Print this help information
 EOT
 
 my $help;
@@ -46,17 +35,26 @@ my $ver_info;
 my $outfile;
 my $lookup;
 my $custom_lookup;
-my $vcf;
-my $tab;
+my $assay_type = 'solid';
 
-GetOptions( "lookup|l=s"         => \$lookup,
-            "custom_lookup|c=s"  => \$custom_lookup,
-            "VCF|V=s"            => \$vcf,
-            "Tab|T=s"            => \$tab,
-            "output|o=s"         => \$outfile,
-            "version|v"          => \$ver_info,
-            "help|h"             => \$help )
-        or die $usage;
+my $usage = <<"EOT";
+USAGE: $scriptname [options] -l <lookup_file> <vcf_file>
+    -l, --lookup           CPSC lookup file to use.  Use '?' to see list of available files.
+    -c, --custom_lookup    Use a custom lookup file rather than one of the built-in ones.
+    -a, --assay            Assay type. Choices are 'cfdna' or 'solid' (DEFAULT: $assay_type).
+    -o, --output           Send output to custom file.  Default is STDOUT.
+    -v, --version          Version information
+    -h, --help             Print this help information
+EOT
+
+GetOptions( 
+    "lookup|l=s"         => \$lookup,
+    "custom_lookup|c=s"  => \$custom_lookup,
+    "assay|a=s"          => \$assay_type,
+    "output|o=s"         => \$outfile,
+    "version|v"          => \$ver_info,
+    "help|h"             => \$help 
+) or die $usage;
 
 sub help {
 	printf "%s - %s\n\n%s\n\n%s\n", $scriptname, $version, $description, $usage;
@@ -76,14 +74,14 @@ my $err = colored( 'ERROR:', 'bold red on_black');
 my $warn = colored( 'WARNING:', 'bold yellow on_black');
 my $info = colored( 'INFO:', 'bold cyan on_black');
 
-# NOTE: Let's get rid of the TSV parsing for this.  I think it's going to be more reliable to work with a 
-#       VCF file from now on.  Temporarily disable TSV parsing until I work it out.
-die "$err Support for reading TSV files is disabled and will be removed in future.  Use VCF file instead\n" if $tab;
+# Check to make sure that we have vcfExtractor in our path.
+my $vcf_extractor_cmd = __check_prog($assay_type);
 
 # Make sure enough args passed to script
+my $vcf = shift;
 if ( defined $lookup && $lookup ne '?' ) {
-    unless ($tab || $vcf) {
-        print "$err You must define either a VCF file with '-V' or a TSV file with '-T'!\n\n";
+    unless ($vcf) {
+        print "$err You must load a VCF file!\n\n";
         print "$usage\n";
         exit 1;
     }
@@ -118,39 +116,40 @@ elsif ($custom_lookup) {
 }
 
 # read variant file and store data
-my %raw_data;
-if ($vcf) {
-    (-e $vcf) ? (%raw_data = read_vcf(\$vcf)) : die "$err Can't read VCF file '$vcf': $!";
-} else {
-    my %tab_data;
-    (-e $tab) ? (%raw_data = read_tab(\$tab)) : die "$err Can't read alleles tab file '$tab': $!";
-}
+my %raw_data = read_vcf(\$vcf, $vcf_extractor_cmd);
+
+dd \%raw_data;
+exit;
 
 # Check VCF dataset against lookup hash for final results.
-my %plas_results = proc_plas_data(\%cpsc_lookup_data,\%raw_data);
+my %plas_results = proc_plas_data(\%cpsc_lookup_data, \%raw_data);
 
 # Print out the results.
 print_results(\%plas_results, \%cpsc_lookup_data);
 
 sub read_vcf {
-    my $vcf_file = shift;
+    my ($vcf_file, $cmd) = @_;
     my %vcf_data;
 
     print "Checking VCF file '$$vcf_file' for CPSC data...\n";
 
-    chomp(my $path = qx( which vcfExtractor.pl ));
-    my $vcf_extractor_cmd = qq{ $path -Nn $$vcf_file };
+    $cmd .= " $$vcf_file";
 
-    my ($parsed_vcf,$child_pid, $child_rc);
+    my ($parsed_vcf, $child_pid, $child_rc);
     # Better error handling to capture failed VCF Extractor output.
     unless($child_pid = open($parsed_vcf, "-|")) {
         open(STDERR, ">&STDOUT");
-        exec($vcf_extractor_cmd);
-        die "ERROR: could not execute program:$!";
+        exec($cmd);
+        die "ERROR: could not execute program: $!";
     }
     waitpid($child_pid,0);
     $child_rc = $? >> 8;
-    die "$err Can not parse VCF file '$$vcf_file'\n" if $child_rc;
+    if ($child_rc) {
+        my ($err_msg) = grep { $_ =~ /ERROR/ } <$parsed_vcf>;
+        print "$err Can not parse VCF file '$$vcf_file'! Message from calling prog:\n";
+        print "  ->  " . $err_msg;
+        exit 1;
+    }
 
     while (<$parsed_vcf>) {
         next unless /^chr/;
@@ -176,7 +175,6 @@ sub rev_and_trim {
     my @rev_ref = split(//, reverse($$ref));
     my @rev_alt = split(//, reverse($$alt));
 
-    #while (@rev_ref > 1 && @rev_alt > 1 && $rev_ref[0] eq $rev_alt[0]) {
     while ($rev_ref[0] eq $rev_alt[0]) {
         shift @rev_ref;
         shift @rev_alt;
@@ -303,27 +301,25 @@ sub field_width {
     return \@widths;
 }
 
-sub read_tab {
-    # TODO: Probably remove this sub and this functionality in order to make this more robust and simple.
-    # Issue here with REF / ALT and OREF / OALT not always agreeing (see the ATM indel for example).  Need to find 
-    # a better way to map this.
-    my $input_file = shift;
-    my %tab_data;
+sub __check_prog {
+    my $type = shift;
+    my %prog_map = (
+        'solid' => 'vcfExtractor.pl',
+        'cfdna' => 'cfDNA_snv_indel_report.pl',
+    );
 
-    print "Checking tab delimited variants file '$$input_file' for CPSC data...\n";
-
-    open( my $tab_fh, "<", $$input_file );
-    my $sample_line = <$tab_fh>;
-    die "$err '$$input_file' does not appear to be a TSV file!\n" if $sample_line =~ /^#/;
-    while (<$tab_fh>) {
-        chomp;
-        next unless /^chr/;
-        my @fields = split(/\t/);
-        my $var_coord = join(':', @fields[0,1]);
-        next if $fields[6] == 0; # get rid of ref calls.
-        my $ref_cov = $fields[18]-$fields[24];
-        $tab_data{join(':', @fields[0..3])} = [$var_coord, @fields[2,3,6,18], $ref_cov, $fields[24], $fields[11]];
+    # Check assay type params.
+    if (! grep { $type eq $_ } keys %prog_map) {
+        print "$err You must choose 'cfdna' or 'solid' for the assay type only!\n";
+        exit 1;
     }
-    close $tab_fh;
-    return %tab_data;
+    my $prog = $prog_map{$type};
+        
+    unless (qx(which $prog)) {
+        print "$err You must have $prog installed in your \$PATH to run this script. ",
+            "This script can be downloaded from:\n\thttps://github.com/drmrgd.\n\n";
+        exit 1;
+    }
+    ($type eq 'solid') ? return $prog .= ' -Nn' : return $prog;
 }
+
