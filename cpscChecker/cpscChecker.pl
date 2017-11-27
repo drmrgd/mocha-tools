@@ -15,7 +15,7 @@ use Term::ANSIColor;
 use Data::Dump;
 use Sort::Versions;
 
-my $version = "v4.2.112717";
+my $version = "v4.3.112717";
 
 print "\n";
 print colored("*" x 75, 'bold yellow on_black');
@@ -118,14 +118,17 @@ elsif ($custom_lookup) {
 # read variant file and store data
 my %raw_data = read_vcf(\$vcf, $vcf_extractor_cmd);
 
-dd \%raw_data;
-exit;
+#dd \%raw_data;
+#exit;
 
 # Check VCF dataset against lookup hash for final results.
-my %plas_results = proc_plas_data(\%cpsc_lookup_data, \%raw_data);
+my %plas_results;
+($assay_type eq 'solid') 
+    ? (%plas_results = proc_plas_data(\%cpsc_lookup_data, \%raw_data))
+    : (%plas_results = %raw_data);
 
 # Print out the results.
-print_results(\%plas_results, \%cpsc_lookup_data);
+print_results(\%plas_results, \%cpsc_lookup_data, $assay_type);
 
 sub read_vcf {
     my ($vcf_file, $cmd) = @_;
@@ -251,54 +254,77 @@ sub proc_plas_data {
 }
 
 sub print_results {
-    my $found_plasmids = shift;
-    my $lookup = shift;
+    my ($found_plasmids, $lookup, $type) = @_;
+    my $ref_width = 8;
+    my $alt_width = 8;
+    my $cds_width = 8; 
+    my $aa_width  = 8;
+
+    if ($type eq 'solid') {
+        ($ref_width, $alt_width) = get_col_widths($found_plasmids, [1,2]);
+    } else {
+        ($ref_width, $alt_width, $cds_width, $aa_width) = get_col_widths($found_plasmids, [1,2,11,12]);
+    }
+
+    my %formatter = ( 
+        'Position'    => '%-17s',
+        'Gene'        => '%-14s',
+        'REF'         => "%-${ref_width}s",
+        'ALT'         => "%-${alt_width}s",
+        'VAF'         => '%-10s',
+        'TotCov'      => '%-8s',
+        'RefCov'      => '%-8s',
+        'AltCov'      => '%-8s',
+        'VarID'       => '%-12s',
+        'Transcript'  => '%-15s',
+        'CDS'         => "%-${cds_width}s",
+        'AA'          => "%-${aa_width}s",
+    );
 
     select $out_fh;
-    my @header_elems = qw( Position Gene REF ALT VAF TotCov RefCov AltCov VARID );
-    my $col_widths = field_width($found_plasmids, [1,2]);
-    my $format = "%-20s%-14s%-$${col_widths[0]}s%-$${col_widths[1]}s%-10s%-8s%-8s%-8s%-10s\n";
+    my @header_elems = qw( Position Gene REF ALT VAF TotCov RefCov AltCov VarID );
+    push(@header_elems, qw(Transcript CDS AA)) if $type eq 'cfdna';
 
+    my $format = join(' ', @formatter{@header_elems}) . "\n";
+
+    # First print what we found.
     print ":::  Plasmids Detected in Sample  :::\n";
     printf $format, @header_elems;
     for my $var ( sort { versioncmp( $a, $b ) } keys %$found_plasmids ) {
-        #printf $format, @{$$found_plasmids{$var}}[0,10,1,2,5,6,7,8,9];
-        printf $format, @{$$found_plasmids{$var}}[0,8,1..7];
+        if ($type eq 'solid') {
+            printf $format, @{$$found_plasmids{$var}}[0,8,1..7];
+        }
+        else {
+            printf $format, @{$$found_plasmids{$var}}[0,9,1,2,3,5,6,7,8,10,11,12];
+        }
     }
 
     # Print out a list of thos missing only if we have some missing.
     if ( (scalar keys %$lookup) > (scalar keys %$found_plasmids) ) {
         print "\n:::  Plasmids Missing in Sample  :::\n";
-        $col_widths = field_width( $lookup, [4,5] );
-        $format = "%-8s%-9s%-14s%-15s%-$${col_widths[0]}s%-$${col_widths[1]}s\n";
+        my ($cds_width, $aa_width) = get_col_widths($lookup, [4,5]);
+        $format = "%-8s%-9s%-14s%-15s%-${cds_width}s%-${aa_width}s\n";
         printf $format, qw(Gene Chr Position VARID CDS Sequence);
         for my $plas ( sort{ versioncmp( $a, $b ) } keys %$lookup) {
             printf $format, @{$$lookup{$plas}}[0..4,7] if (! exists $$found_plasmids{$plas});
         }
     }
-
-    return;
 }
 
-sub field_width {
-    my $data = shift;
-    my $cols = shift;
-
+sub get_col_widths {
+    my ($data, $indices) = @_;
     my @widths;
-
-    for my $col (@$cols) {
-        my $width = 0;
-        for my $elem (keys %$data) {
-            my $length = length $$data{$elem}->[$col];
-            if ( $length > $width ) {
-                $width = ($length);
-            }
-        }
-        push( @widths, $width );
+    for my $pos (@$indices) {
+        my @elems = map { $data->{$_}[$pos] } keys %$data;
+        push(@widths, __get_longest(\@elems)+2);
     }
-    # Add some extra padding in there.
-    @widths = map { $_ + 4 } @widths;
-    return \@widths;
+    return @widths;
+}
+
+sub __get_longest {
+    my $array = shift;
+    my @lens = map { length($_) } @$array;
+    return (sort { versioncmp($b, $a) } @lens)[0];
 }
 
 sub __check_prog {
