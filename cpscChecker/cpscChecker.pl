@@ -15,19 +15,21 @@ use Term::ANSIColor;
 use Data::Dump;
 use Sort::Versions;
 
-my $version = "v4.3.112717";
+my $version = "v5.0.112717";
 
 print "\n";
 print colored("*" x 75, 'bold yellow on_black');
-print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER (version: $version)\n", 'bold yellow on_black');
+print colored("\n    DEVELOPMENT VERSION OF CPSC CHECKER (version: $version)\n", 
+    'bold yellow on_black');
 print colored("*" x 75, 'bold yellow on_black');
 print "\n\n";
 
 my $scriptname = basename($0);
 my $description = <<"EOT";
-Using a plasmid lookup table for the version of the CPSC used in the experiment, query a TVC VCF
-file to check to see if the plasmids were seen in the sample, and print out the data.  If the 
-plasmid was not found, print out a list of missing plasmids.  
+Using a plasmid lookup table for the version of the CPSC used in the experiment,
+query a TVC VCF file to check to see if the plasmids were seen in the sample, and
+print out the data.  If the plasmid was not found, print out a list of missing 
+plasmids.  
 EOT
 
 my $help;
@@ -90,12 +92,13 @@ if ( defined $lookup && $lookup ne '?' ) {
 # Write output to either indicated file or STDOUT
 my $out_fh;
 if ( $outfile ) {
-	open( $out_fh, ">", $outfile ) || die "Can't open the output file '$outfile' for writing: $!";
+	open( $out_fh, ">", $outfile ) 
+        || die "Can't open the output file '$outfile' for writing: $!";
 } else {
 	$out_fh = \*STDOUT;
 }
 
-#########------------------------------ END ARG Parsing ---------------------------------#########
+#########---------------------- END ARG Parsing ------------------------#########
 
 # Generate lookup dataset
 my %cpsc_lookup_data;
@@ -111,21 +114,17 @@ elsif ($custom_lookup) {
     }
     %cpsc_lookup_data = load_lookup(\$custom_lookup);
 } else {
-    print "$err You must load a lookup file with either the '--lookup' or '--custom_lookup' options\n";
+    print "$err You must load a lookup file with either the '--lookup' or ",
+        "'--custom_lookup' options\n";
     exit 1;
 }
 
 # read variant file and store data
 my %raw_data = read_vcf(\$vcf, $vcf_extractor_cmd);
 
-#dd \%raw_data;
-#exit;
-
 # Check VCF dataset against lookup hash for final results.
-my %plas_results;
-($assay_type eq 'solid') 
-    ? (%plas_results = proc_plas_data(\%cpsc_lookup_data, \%raw_data))
-    : (%plas_results = %raw_data);
+my %plas_results  = proc_plas_data(\%cpsc_lookup_data, \%raw_data, $assay_type);
+#__exit__(__LINE__,'Finished parsing all data and about to push to formatter / printer');
 
 # Print out the results.
 print_results(\%plas_results, \%cpsc_lookup_data, $assay_type);
@@ -149,7 +148,7 @@ sub read_vcf {
     $child_rc = $? >> 8;
     if ($child_rc) {
         my ($err_msg) = grep { $_ =~ /ERROR/ } <$parsed_vcf>;
-        print "$err Can not parse VCF file '$$vcf_file'! Message from calling prog:\n";
+        print "$err Can not parse VCF file '$$vcf_file'! Message from calling prog (`$cmd`):\n";
         print "  ->  " . $err_msg;
         exit 1;
     }
@@ -234,7 +233,7 @@ sub load_lookup {
 
 sub proc_plas_data {
     # Do a little post processing on variant call data to add in COSMIC IDs and whatnot
-    my ($cpsc_lookup, $variant_data) = @_;
+    my ($cpsc_lookup, $variant_data, $type) = @_;
     my %results;
     my %missing;
 
@@ -242,8 +241,15 @@ sub proc_plas_data {
         next unless (exists $$cpsc_lookup{$var});
         @{$results{$var}} = @{$$variant_data{$var}};
 
-        # Do a little post processing to get the gene name and fix variant ID
-        push( @{$results{$var}}, $$cpsc_lookup{$var}->[0] );
+        # Fix the gene name for solid tumor runs
+        if ($type eq 'solid') {
+            push( @{$results{$var}}, $$cpsc_lookup{$var}->[0] );
+        }
+
+        #Fix the variant ID for liquid biopsy.
+        if ($type eq 'cfdna') {
+            ${$results{$var}}[8] = $$cpsc_lookup{$var}->[3];
+        }
 
         # Have to adjust the fields since we removed all NOCALL data from final output.
         if ($results{$var}->[7] =~ /^[-.]/) {
@@ -349,3 +355,10 @@ sub __check_prog {
     ($type eq 'solid') ? return $prog .= ' -Nn' : return $prog;
 }
 
+sub __exit__ {
+    my ($line, $msg) = @_;
+    print "\n\n";
+    print colored("Got exit message at line $line with message: $msg", 'bold white on_green');
+    print "\n";
+    exit;
+}
