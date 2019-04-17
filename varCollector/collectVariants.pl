@@ -16,7 +16,7 @@ use Getopt::Long qw( :config auto_abbrev bundling no_ignore_case );
 use Data::Dump;
 
 my $scriptname = basename($0);
-my $version = "v3.4.0_090915";
+my $version = "v3.5.0_080417";
 my $description = <<"EOT";
 Script to collect variant calls from an Ion Torrent run into a central 'collectedVariants' directory located
 within the main results folder.  This script requires a sampleKey consisting of the barcode and sample it
@@ -64,7 +64,7 @@ die "ERROR: You must provide the TVC Plugin results directory to process!\n" unl
 my $tvc_path = "$resultsDir/plugin_out/" . basename($tvc_out);
 die "ERROR: No such directory '$tvc_path'! TVC not yet run, or you are not running from a results directory.\n" unless -d $tvc_path;
 
-my ($runid) = $resultsDir =~ /([PM]C[123C]-\d+)/;
+my ($runid) = $resultsDir =~ /([PM]C[1-6C]-\d+)/;
 
 # Make collectedVariants directory
 # Don't need this if it's called from a wrapper script.
@@ -72,6 +72,7 @@ if ( ! $outdir ) {
     $outdir = "$resultsDir/collectedVariants";
     my ($plugin_number) = $tvc_out =~ /\.(\d+)\/?$/;
     $outdir .= ".$plugin_number" if $plugin_number;
+    mkdir($outdir);
 }
 
 my $sampleKey;
@@ -85,13 +86,7 @@ die "ERROR: sampleKey file not found in '$outdir'!\n" unless (-e $sampleKey);
 
 # Check to make sure we have a valid sampleKey and load up a list
 open( my $skey_fh, "<", "$sampleKey" ) || die "No sample key found: $!\n";
-my %barcodes;
-while (<$skey_fh>) {
-    chomp;
-    my ($bc, $samp) = split( /\t/ );
-    $samp =~ tr/ /_/;
-    $barcodes{$bc} = $samp;
-}
+my %barcodes = map { chomp; split(/\t/,$_) } <$skey_fh>;
 close( $skey_fh );
 
 # Read list of IonXpress dirs in TVC results dir
