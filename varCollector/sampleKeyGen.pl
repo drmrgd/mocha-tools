@@ -61,32 +61,33 @@ sub version {
 help() if $help;
 version() if $ver_info;
 
-# Create an output fh; either STDOUT for testing or sampleKey.txt for production
-my $out_fh;
-if ( ! $preview ) {
-	open( $out_fh, ">", $outfile ) || die "Can't write the file '$outfile': $!\n";
-} else {
-	$out_fh = \*STDOUT;
-}
-
 # Allow for custom JSON if we want.
 $jsonfile = $custom_json if $custom_json; 
 if ( ! -f $jsonfile) {
     die "ERROR: The JSON file '$jsonfile' can not be found. Check your path!\n";
 }
 
-##----------------------------------------- End Command Arg Parsing ------------------------------------##
+##--------------- End Command Arg Parsing ------------------------------------##
 my %bc_hash;
 
 # Create hash map of data.
 map_samples(\$jsonfile);
 
-# Make sure that there is data to be printed, otherwise have to build a sample key manually
+# Make sure that there is data to be printed, otherwise have to build a sample
+# key manually
 if ( ( grep { $bc_hash{$_} =~ /none/i } keys %bc_hash ) == scalar( keys %bc_hash ) ) {
     print "ERROR: No samples listed for any of the barcodes in the experiment ",
         "JSON file.  A run plan was possibly not uploaded prior to running.\n";
     print "You will need to manually create a sampleKey for this experiment\n";
     exit 1;
+}
+
+# Create an output fh; either STDOUT for testing or sampleKey.txt for production
+my $out_fh;
+if ( ! $preview ) {
+	open( $out_fh, ">", $outfile ) || die "Can't write the file '$outfile': $!\n";
+} else {
+	$out_fh = \*STDOUT;
 }
 
 # Print out the final sampleKey data
